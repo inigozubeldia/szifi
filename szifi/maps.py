@@ -946,6 +946,8 @@ def get_hankel_transform(theta_range,function,n=512,pad=128):
 
     return l,r,lprof,dlog
 
+#Taken from pixell
+
 class RadialFourierTransform:
 
     def __init__(self, lrange=None, rrange=None, n=512, pad=256):
