@@ -24,10 +24,28 @@ def get_realisation_from_spec_fft(pix,ell,cl):
 
     return map_fft
 
+def get_realisation_from_spec_fft_noimap(pix,cl_map):
+
+    my_map = maps.rmap(pix)
+
+    nx = pix.nx
+    ny = pix.ny
+    map_fft = (np.random.standard_normal((nx,ny//2+1))+1.j*np.random.standard_normal((nx,ny//2+1)))/np.sqrt(2.)
+    map_fft[0,0] = np.sqrt(2.)*np.real(map_fft[0,0])
+    map_fft[nx//2+1:,0] = np.conj(map_fft[1:nx//2,0][::-1])
+
+    map_fft = maps.rfft2_to_fft2(pix,map_fft)
+    map_fft[:,:] *= np.sqrt(cl_map)
+
+    return map_fft
+
 def get_realisation_from_spec_real(pix,ell,cl):
 
     return maps.get_ifft(get_realisation_from_spec_fft(pix,ell,cl),pix)
 
+def get_realisation_from_spec_real_noimap(pix,cl_map):
+
+    return maps.get_ifft(get_realisation_from_spec_fft_noimap(pix,cl_map),pix)
 
 def get_cmb_realisation(pix): #CMB realisation in muK
 

@@ -2,210 +2,18 @@ import numpy as np
 from astropy.cosmology import Planck15
 from scipy import integrate
 import maps
-import expt
 import scipy.optimize as optimize
 import pylab as pl
 import websky
 import scipy
 #from pysz import pysz
-
-class gnfw_arnaud:
-
-    def __init__(self,M_500,z_halo,cosmology,c_500=1.177,path="/Users/user/Desktop/"):
-
-        #Create variables
-
-        self.M_500 = M_500*1e15
-        self.c = c_500
-        self.z_halo = z_halo
-        self.cosmology = cosmology
-        self.path = path
-
-        #Calculate basic quantities
-
-        const = constants()
-        self.rho_c = cosmology.critical_density(self.z_halo).value*1000.*const.mpc**3/const.solar
-        self.r_s = (3./4.*self.M_500/self.rho_c/500./np.pi/self.c**3)**(1./3.)
-        self.R_500 = self.c*self.r_s
-
-        self.chi_h = cosmology.comoving_distance(self.z_halo).value #In Mpc
-        self.d_ad_h = self.chi_h/(1.+z_halo)
-
-        self.theta_500 = self.R_500/self.d_ad_h
-        self.theta_500_arcmin = self.theta_500/np.pi*180.*60.
-        self.my_params_sz = params_sz(cosmology,c=self.c)
-
-        self.Ez = self.cosmology.H(self.z_halo).value/self.cosmology.H0.value
-        self.h70 = self.cosmology.H0.value/70.
-        self.P_500 = 1.65e-3*self.Ez**(8./3.)*(self.M_500/3e14*self.h70)**(2./3.)*self.h70**2  #in units of keV cm-3
-        const = constants()
-        self.P2Y = const.mpc*100.*const.sigma_thomson_e/const.mass_e #converts pressure in units of keV cm-3 to dimensionless Compton y
-        self.Y_500 = self.P_500*self.R_500**3*4.*np.pi/3.*self.P2Y #characteristic Y, in units of Mpc^2
-
-
-    def get_p_cal_map(self,pix,c_500,theta_misc=[0.,0.]):
-
-        nx = pix.nx
-        dx = pix.dx
-        ny = pix.ny
-        dy = pix.dy
-
-        theta_max = np.sqrt((nx*dx)**2+(ny*dy)**2)*0.5*1.1
-        theta_vec = np.linspace(0.0001,theta_max,1000)
-        p_cal_vec = np.zeros(len(theta_vec))
-
-        for i in range(0,len(theta_vec)):
-
-            x = theta_vec[i]/self.theta_500
-            p_cal_vec[i] = self.get_p_cal_int(self.my_params_sz,x)
-
-        theta_map = maps.rmap(pix).get_distance_map_wrt_centre(theta_misc)
-        p_cal_map = np.interp(theta_map,theta_vec,p_cal_vec)
-
-        return p_cal_map
-
-    def get_y_map(self,pix,theta_misc=[0.,0.]):
-
-        p_cal_map = self.get_p_cal_map(pix,self.c,theta_misc)
-        y_map = self.p_cal_to_y(p_cal_map)
-
-        return y_map
-
-    def get_y_norm(self,type="R_500"):  #returns y at R_500
-
-        if type == "R_500":
-
-            r = 1.
-
-        elif type == "centre":
-
-            r = 1e-6
-
-        return self.p_cal_to_y(self.get_p_cal_int(self.my_params_sz,r))
-
-    def get_y_at_angle(self,theta): #angle in rad
-
-        return self.p_cal_to_y(self.get_p_cal_int(self.my_params_sz,theta/self.theta_500))
-
-    def get_y_map_convolved(self,pix,fwhm_arcmin,theta_misc=[0.,0.]):
-
-        return maps.get_gaussian_convolution(self.get_y_map(pix,theta_misc=theta_misc),fwhm_arcmin,pix)
-
-    def get_y_norm_convolved(self,pix,fwhm_arcmin,y_map=None,theta_misc=[0.,0.]):
-
-        if y_map == None:
-
-            y_map = self.get_y_map_convolved(pix,fwhm_arcmin,theta_misc)
-
-        (theta_x,theta_y) = theta_misc
-        x_coord = maps.rmap(pix).get_x_coord_map_wrt_centre(theta_x)[0,:]/self.theta_500
-        y_coord = maps.rmap(pix).get_y_coord_map_wrt_centre(theta_y)[:,0]/self.theta_500
-
-        return interpolate.interp2d(x_coord,y_coord,y_map)(1.,0.)
-
-
-    def p_cal_to_y(self,p_cal_map):
-
-        prefactor = self.P_500*(self.M_500/3e14*self.h70)**(self.my_params_sz.alpha_p)*self.R_500
-
-        return p_cal_map*prefactor*self.P2Y
-
-    def get_Y_sph(self,x):  #returns spherically integrated Y, assuming self-similarity+alpha_p, in units of Mpc^2. x in units of R_500
-
-        if x == 1:
-
-            I = 0.6145
-
-        elif x == 5:
-
-            I = 1.1037
-
-        return self.Y_500*(self.M_500/3e14*self.h70)**(self.my_params_sz.alpha_p)*I
-
-    def get_Y_cyl(self,x):  #returns cylindrically integrated Y, assuming self-similarity+alpha_p. x in units of R_500.
-                            #In units of Mpc^2, i.e., divide by d_A^2 to get true aperture integrated Y
-
-        if x == 1:
-
-            J = 0.7398
-
-        elif x == 5:
-
-            J = 1.1037
-
-        return self.Y_500*(self.M_500/3e14*self.h70)**(self.my_params_sz.alpha_p)*J
-
-    def get_Y_aperture(self,x): #dimensionless (sterad)
-
-        return self.get_Y_cyl(x)/self.d_ad_h**2
-
-    def get_p_cal_int(self,my_params_sz,r): #r is distance in units of R_500
-
-        def p_cal(z):
-
-            x = np.sqrt(z**2+r**2)
-
-            if x < 5:  #truncating at 5 R_500
-
-                p_cal = my_params_sz.P0/((my_params_sz.c_500*x)**my_params_sz.gamma*(1.+(my_params_sz.c_500*x)**my_params_sz.alpha)**((my_params_sz.beta-my_params_sz.gamma)/my_params_sz.alpha))
-
-
-            else:
-
-                p_cal = 0.
-
-            return p_cal
-
-        #p_int = integrate.quad(p_cal,-np.inf,np.inf,epsabs=1.49e-08/100.)[0]
-        p_int = integrate.quad(p_cal,-5.,5.,epsabs=1.49e-08/100.,limit=100)[0]
-
-        return p_int
-
-    def get_t_map(self,pix,exp,theta_misc=[0.,0.],sed=None): #returns t map in units of muK (all freqs)
-
-        y_map = self.get_y_map(pix,theta_misc=theta_misc)
-
-        if sed == None:
-
-            sed = exp.tsz_f_nu
-
-        n_freqs = exp.n_freqs
-        t_map = np.zeros((pix.nx,pix.ny,n_freqs))
-
-        for i in range(0,n_freqs):
-
-            t_map[:,:,i] = y_map*sed[i]
-
-        return t_map
-
-    #NOTE: theta_misc is in rad and is [i,j] coord. Positive miscentering in i
-    #means "upwards", and in j "leftwards" (i.e., in both cases towards the origin)
-
-    def get_t_map_convolved(self,pix,exp,theta_misc=[0.,0.],theta_cart=None,beam="gaussian",get_nc=False):
-
-        if theta_cart != None:
-
-            theta_misc = maps.get_theta_misc(theta_cart,pix)
-
-        tmap = self.get_t_map(pix,exp,theta_misc=theta_misc)
-        tmap_convolved = maps.convolve_tmap_experiment(pix,tmap,exp,beam_type=beam)
-        #tmap_convolved = tmap
-
-        if get_nc == True:
-
-            ret = tmap_convolved,tmap
-
-        else:
-
-            ret = tmap_convolved
-
-        return ret
+import expt
 
 #Delta critical always
 
 class gnfw_tsz:
 
-    def __init__(self,M,z_halo,cosmology,c=1.177,Delta=500.,type="arnaud",path="/Users/user/Desktop/"):
+    def __init__(self,M,z_halo,cosmology,c=1.177,Delta=500.,type="arnaud",path="/rds-d4/user/iz221/hpc-work/",):
 
         #Create variables
 
@@ -278,7 +86,7 @@ class gnfw_tsz:
 
         elif type == "centre":
 
-            r = 1e-6
+            r = 1e-8#1e-6
 
         return self.p_cal_to_y(self.get_p_cal_int(r))
 
@@ -424,7 +232,7 @@ class gnfw_tsz:
 
         return y_map
 
-    def get_t_map_convolved_hankel(self,pix,exp,theta_misc=[0.,0.],beam_type="gaussian",get_nc=False,sed=None):
+    def get_t_map_convolved_hankel2(self,pix,exp,theta_misc=[0.,0.],beam_type="gaussian",get_nc=False,sed=None):
 
         if sed is None:
 
@@ -485,6 +293,86 @@ class gnfw_tsz:
 
         return ret
 
+    def get_t_map_convolved_hankel(self,pix,exp,theta_misc=[0.,0.],beam_type="gaussian",get_nc=False,sed=None):
+
+        theta_vec,t_vec_conv,t_vec = self.get_t_vec_convolved_hankel(pix,exp,beam_type=beam_type,get_nc=True,sed=sed)
+
+        theta_map = maps.rmap(pix).get_distance_map_wrt_centre(theta_misc)
+
+        t_map = np.zeros((pix.nx,pix.ny,exp.n_freqs))
+        t_map_conv = np.zeros((pix.nx,pix.ny,exp.n_freqs))
+
+        for i in range(0,exp.n_freqs):
+
+            t_map_conv[:,:,i] = np.interp(theta_map,theta_vec,t_vec_conv[:,i],right=0.)
+            t_map[:,:,i] = np.interp(theta_map,theta_vec,t_vec[:,i],right=0.)
+
+        if get_nc == True:
+
+            ret = t_map_conv,t_map
+
+        else:
+
+            ret = t_map_conv
+
+        return ret
+
+    def get_t_vec_convolved_hankel(self,pix,exp,beam_type="gaussian",get_nc=False,sed=None):
+
+        if sed is None:
+
+            sed = exp.tsz_f_nu
+
+        elif sed is False:
+
+            sed = np.ones(len(exp.tsz_f_nu))
+
+        def to_transform(theta):
+
+            return np.vectorize(self.get_p_cal_int)(theta/self.theta_Delta)
+
+        theta_range = [pix.dx/10.,self.theta_Delta*self.my_params_sz.R_truncation*20.]
+
+        rht = maps.RadialFourierTransform(rrange=theta_range)
+        rprofs = to_transform(rht.r)
+        lprofs = rht.real2harm(rprofs)
+        ell_vec = rht.l
+
+        r_temp, rprofs_temp = rht.unpad(rht.r,rprofs)
+
+        t_vec = np.zeros((len(r_temp),exp.n_freqs))
+        t_vec_conv = np.zeros((len(r_temp),exp.n_freqs))
+
+        for i in range(0,exp.n_freqs):
+
+            if beam_type == "gaussian":
+
+                beam_fft = maps.get_bl(exp.FWHM[i],ell_vec)
+
+            elif beam_type == "real":
+
+                ell_beam,beam_fft = exp.get_beam(i)
+                beam_fft = np.interp(ell_vec,ell_beam,beam_fft)
+
+            rprofs_convolved = rht.harm2real(lprofs*beam_fft)
+            r, rprofs_convolved = rht.unpad(rht.r,rprofs_convolved)
+
+            rprofs = rht.harm2real(lprofs)
+            r, rprofs = rht.unpad(rht.r,rprofs)
+
+            t_vec_conv[:,i] = self.p_cal_to_y(rprofs_convolved)*sed[i]
+            t_vec[:,i] = self.p_cal_to_y(rprofs)*sed[i]
+
+        if get_nc == True:
+
+            ret = r,t_vec_conv,t_vec
+
+        else:
+
+            ret = r,t_vec_conv
+
+        return ret
+
     #NOTE: theta_misc is in rad and is [i,j] coord. Positive miscentering in i
     #means "upwards", and in j "leftwards" (i.e., in both cases towards the origin)
 
@@ -503,6 +391,7 @@ class gnfw_tsz:
         elif eval_type == "hankel":
 
             tmap_convolved,tmap = self.get_t_map_convolved_hankel(pix,exp,theta_misc=theta_misc,beam_type=beam,get_nc=True,sed=sed)
+            #tmap_convolved,tmap = self.get_t_map_convolved_hankel2(pix,exp,theta_misc=theta_misc,beam_type=beam,get_nc=True,sed=sed)
 
         if get_nc == True:
 
@@ -521,7 +410,7 @@ class params_sz: #For above class
         if type == "arnaud":
 
             self.P0 = 8.403*(cosmology.H0.value/70.)**(-1.5)
-            self.c_500 = c #1.77 from Arnaud
+            self.c_500 = c #1.177 from Arnaud
             self.gamma = 0.3081
             self.alpha = 1.0510
             self.beta = 5.4905
@@ -580,7 +469,7 @@ def get_theta_500_arcmin(M_500,z,cosmology): #return M_500 in units of 1e15 sola
 
     return theta_500_arcmin
 
-def get_tsz_f_nu(nu,units): #nu in Hz, non relativistic, returns tSZ spectral signature, which times Compton y gives frequency map
+def get_tsz_f_nu(nu,units): #nu in Hz, non relativistic, returns tSZ SED, which times Compton y gives frequency map
 
     const = constants()
     x = nu*const.h/(const.k_B*const.T_CMB)
@@ -833,7 +722,11 @@ def gaussian_1d(x,mu,sigma):
 
 class cib_model: #Modified blackbody, model used in Websky.
 
-    def __init__(self,path="/Users/user/Desktop/",beta=None,T0=None):
+    def __init__(self,path="/rds-d4/user/iz221/hpc-work/",beta=None,T0=None,exp=None):
+
+        if exp is None:
+
+            exp = expt.planck_specs(path=path)
 
         if beta is None:
 
@@ -851,6 +744,7 @@ class cib_model: #Modified blackbody, model used in Websky.
         self.nu_pivot = 1#3e9
         self.path = path
         self.moments = {}
+        self.exp = exp
 
     #Input nu is experiment nu (i.e. at z = 0). Returns intensity in T_CMB units.
 
@@ -866,9 +760,13 @@ class cib_model: #Modified blackbody, model used in Websky.
 
         if units == "T_CMB":
 
-            #Theta = Theta_0*MJysr_to_muK_factor(nu)/1e10
-            exp = expt.planck_specs(path=self.path)
-            Theta = Theta_0*exp.MJysr_to_muK_websky
+            if self.exp.name == "Planck_real":
+
+                Theta = Theta_0*self.exp.MJysr_to_muK_websky
+
+            else:
+
+                Theta = Theta_0*expt.websky_conversions().get_MJysr2muK(self.exp.nu_eff)
 
         elif units == "SI":
 
@@ -876,7 +774,7 @@ class cib_model: #Modified blackbody, model used in Websky.
 
         return Theta
 
-    def get_Theta_1d(self,nu,z,exp,units="T_CMB"):
+    def get_Theta_1d(self,nu,z,units="T_CMB"):
 
         nup = nu*(1.+z)
 
@@ -889,7 +787,14 @@ class cib_model: #Modified blackbody, model used in Websky.
 
         if units == "T_CMB":
 
-            Theta_1_betaT = Theta_1_betaT*exp.MJysr_to_muK_websky
+            if self.exp.name == "Planck_real":
+
+                Theta_1_betaT = Theta_1_betaT*self.exp.MJysr_to_muK_websky
+
+            else:
+
+                Theta_1_betaT = Theta_1_betaT*expt.websky_conversions().get_MJysr2muK(self.exp.nu_eff)
+
 
         self.Theta_1_betaT = Theta_1_betaT
         self.Theta_1_beta = Theta_1_beta
@@ -899,23 +804,23 @@ class cib_model: #Modified blackbody, model used in Websky.
         return Theta_1_beta,Theta_1_betaT
 
 
-    def get_sed_exp(self,exp,z,beta=None):
+    def get_sed_exp(self,z,beta=None):
 
-        nu_vec = exp.nu_eff
+        nu_vec = self.exp.nu_eff
 
         return (nu_vec,self.get_Theta(nu_vec,z,beta=beta))
 
-    def get_sed_1d_exp(self,exp,z,units="T_CMB"):
+    def get_sed_1d_exp(self,z,units="T_CMB"):
 
-        nu_vec = exp.nu_eff
+        nu_vec = self.exp.nu_eff
 
-        Theta_1_beta,Theta_1_betaT = self.get_Theta_1d(nu_vec,z,exp,units=units)
+        Theta_1_beta,Theta_1_betaT = self.get_Theta_1d(nu_vec,z,units=units)
 
         return Theta_1_beta,Theta_1_betaT
 
-    def get_sed_exp_class_sz(self,exp):
+    def get_sed_exp_class_sz(self):
 
-        nu_vec = exp.nu_eff
+        nu_vec = self.exp.nu_eff
 
 #    [nu0,I0] = np.load("class_sz_cib_monopole_planck.npy",allow_pickle=True)
         [nu0,I0] = np.load("CIB_monopole_class_sz.npy",allow_pickle=True)
@@ -965,6 +870,11 @@ def dBnudT(nu,T_CMB=constants().T_CMB):
 
     return 2.*const.k_B*nu**2/const.c_light**2*f
 
+def MJysr_to_muK(nu):
+
+    return 1./dBnudT(nu)*1e6/1e20
+
+
 class ps_sz:
 
     def __init__(self):
@@ -982,6 +892,7 @@ class ps_sz:
 
 #From MJy/sr to muK_CMB. Input frequency in Hz, I in MJy/sr, returns in muK_CMB
 
+"""
 def MJysr_to_muK(I,nu):
 
     const = constants()
@@ -989,6 +900,7 @@ def MJysr_to_muK(I,nu):
     x = const.h*nu/(const.k_B*const.T_CMB)
 
     return 1.05e3*(np.exp(x)-1.)**2*np.exp(-x)*(nu/1e11)**(-4)*I
+"""
 
 def MJysr_to_muK_factor(nu):
 

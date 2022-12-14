@@ -124,7 +124,7 @@ class mmf_detection:
 
     def find_clusters(self,t_obs,mask_map=None,t_noise=None,pixel_id=0,mask_select=None,mask_select_no_tile=None,
     mask_ps=None,save_name=None,save_maps=False,mask_point=None,true_catalogue=None,mask_peak_finding_no_tile=None,
-    mask_peak_finding=None,t_true=None,fixed_catalogue=None):
+    mask_peak_finding=None,t_true=None,fixed_catalogue=None,save_name_path=None):
 
         if t_true is None:
 
@@ -183,6 +183,7 @@ class mmf_detection:
         self.mask_peak_finding = mask_peak_finding
         self.mask_peak_finding_no_tile = mask_peak_finding_no_tile
         self.save_name = save_name
+        self.save_name_path = save_name_path
         self.save_maps = save_maps
         self.true_catalogue = true_catalogue
         self.fixed_catalogue = fixed_catalogue
@@ -227,6 +228,8 @@ class mmf_detection:
         self.t_obs_inp = maps.filter_tmap(self.t_obs_inp,self.pix,self.lrange)
         self.t_noise = maps.filter_tmap(self.t_noise,self.pix,self.lrange)
         self.t_true = maps.filter_tmap(self.t_true,self.pix,self.lrange)
+
+        sigma_to_select_true_catalogue = np.load("sigma_matrix_mmf_6.npy")[self.pixel_id,:]
 
         while i >= 0:
 
@@ -319,21 +322,13 @@ class mmf_detection:
 
             #SNR extraction
 
-            if self.theta_find == "true":
-
-                #won't work for websky
-
-                true_catalogue_selected = select_true_catalogue(self.true_catalogue,self.theta_500_vec,self.results.sigma_vec,n_clusters=self.n_clusters_true)
-
-                self.theta_500_vec = true_catalogue_selected.theta_500
-
             self.filtered_maps = filter_maps(self.t_obs_inp,self.inv_cov,self.pix,self.cosmology,
             self.theta_500_vec,self.q_th,theta_range=self.theta_range,pixel_id=self.pixel_id,
             save_maps=self.save_maps,save_name=self.save_name,i_it=i,mask_map=self.mask_map,mask_select_list=[self.mask_select,self.mask_select_no_tile],
             mask_peak_finding_list=[self.mask_peak_finding,self.mask_peak_finding_no_tile],
             lrange=self.lrange,freqs=self.freqs,beam=self.beam,norm_type=self.norm_type,find_subgrid=self.find_subgrid,
             detection_method=self.detection_method,apod_type=self.apod_type,path=self.path,rank=self.rank,
-            mmf_type=self.mmf_type,cmmf=self.cmmf,exp=self.exp,profile_type=self.profile_type)
+            mmf_type=self.mmf_type,cmmf=self.cmmf,exp=self.exp,profile_type=self.profile_type,save_name_path=self.save_name_path)
 
             if self.extraction_mode == "find" or (self.extraction_mode == "fixed" and self.true_cat_select == "q") or (self.extraction_mode == "fixed" and self.it == True and i < self.max_it):
 
@@ -357,22 +352,33 @@ class mmf_detection:
 
                     print("q finding",np.flip(np.sort(self.results.catalogues["catalogue_find_" + str(i)].catalogue["q_opt"])))
 
-            if (self.extraction_mode == "fixed") and (i >= self.it_min_for_fixed):
+            if (self.extraction_mode == "fixed"):# and (i >= self.it_min_for_fixed):
 
-                if self.rank == 0:
+                con1 = (self.it == True and i > 0)
+                con2 = (self.it == False)
+                con3 = (self.it == True and len(self.results.catalogues["catalogue_find_" + str(i)].catalogue["q_opt"]) == 0.)
+                con4 = (self.it == True and all(self.results.catalogues["catalogue_find_" + str(i)].catalogue["q_opt"] < self.q_th_noise))
 
-                    print("Extraction at fixed catalogue")
+                if (con1 or con2 or con3 or con4):
 
-                true_catalogue_selected = select_true_catalogue(self.fixed_catalogue,self.theta_500_vec,
-                self.results.sigma_vec,n_clusters=self.n_clusters_true)
-                self.filtered_maps.extract_at_true_values(self.t_obs_inp,
-                true_catalogue_selected,subgrid_label=self.subgrid_label,
-                comp_to_calculate=self.comp_to_calculate,profile_type=self.profile_type)
-                catalogue_obs = self.filtered_maps.catalogue_true_values
+                    if self.rank == 0:
 
-                self.results.catalogues["catalogue_fixed_" + str(i)] = catalogue_obs
+                        print("Extraction at fixed catalogue")
 
-                print("q fixed",np.flip(np.sort(self.results.catalogues["catalogue_fixed_" + str(i)].catalogue["q_opt"])))
+                    #sigma_to_select_true_catalogue = self.results.sigma_vec
+
+                    true_catalogue_selected = select_true_catalogue(self.fixed_catalogue,self.theta_500_vec,
+                    sigma_to_select_true_catalogue,n_clusters=self.n_clusters_true)
+                    self.filtered_maps.extract_at_true_values(self.t_obs_inp,
+                    true_catalogue_selected,subgrid_label=self.subgrid_label,
+                    comp_to_calculate=self.comp_to_calculate,profile_type=self.profile_type)
+                    catalogue_obs = self.filtered_maps.catalogue_true_values
+
+                    self.results.catalogues["catalogue_fixed_" + str(i)] = catalogue_obs
+
+                    print("q fixed",np.flip(np.sort(self.results.catalogues["catalogue_fixed_" + str(i)].catalogue["q_opt"])))
+
+                #print("q fixed",self.results.catalogues["catalogue_fixed_" + str(i)].catalogue["theta_500"])
 
             #Extract signal at true values
 
@@ -385,7 +391,7 @@ class mmf_detection:
 
                 if (con1 or con2 or con3 or con4):
 
-                    true_catalogue_selected = select_true_catalogue(self.true_catalogue,self.theta_500_vec,self.results.sigma_vec,n_clusters=self.n_clusters_true)
+                    true_catalogue_selected = select_true_catalogue(self.true_catalogue,self.theta_500_vec,sigma_to_select_true_catalogue,n_clusters=self.n_clusters_true)
 
                     if self.q_true_type == "grid":
 
@@ -558,7 +564,7 @@ class filter_maps:
     theta_range=None,pixel_id=0,save_maps=False,save_name=None,i_it=0,mask_map=None,
     mask_select_list=None,mask_peak_finding_list=None,lrange=None,freqs=[0,1,2,3,4,5],beam="gaussian",
     norm_type="centre",find_subgrid=False,theta_find="input",detection_method="maxima",mmf_type="standard",
-    cmmf = None,
+    cmmf = None,save_name_path=None,
     apod_type="old",path="/Users/user/Desktop/",rank=0,exp=None,profile_type="arnaud"):
 
         if theta_range == None:
@@ -592,6 +598,7 @@ class filter_maps:
         self.pixel_id = pixel_id
         self.save_maps = save_maps
         self.save_name = save_name
+        self.save_name_path = save_name_path
         self.i_it = i_it
         self.mask_map = mask_map
         self.mask_select_list = mask_select_list
@@ -688,7 +695,7 @@ class filter_maps:
                     #pl.imshow(q_map*self.mask_select_list[0])
                     #pl.savefig(self.save_name + "_q_" + str(self.i_it) + "_" + str(j) + ".pdf")
                     #pl.close()
-                    np.save(self.save_name + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_list[0])
+                    np.save(self.save_name_path + self.save_name + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_list[0])
 
                 self.q_tensor[:,:,j,k] = q_map
                 self.y_tensor[:,:,j,k] = y_map
@@ -745,7 +752,6 @@ class filter_maps:
 
             mask_map_t = maps.clone_map_freq(self.mask_map,t_true.shape[2])
             t_true = t_true*mask_map_t
-
 
         n_clus = len(true_catalogue.catalogue["theta_x"])
 
@@ -812,7 +818,8 @@ class filter_maps:
             catalogue_at_true_values.catalogue["q_c" + str(i)] = q_opt[:,i]
             catalogue_at_true_values.catalogue["c" + str(i)] = y0_est[:,i]
 
-        self.catalogue_true_values = cat.apply_mask_select(catalogue_at_true_values,self.mask_select_list[1],self.pix)
+        self.catalogue_true_values = catalogue_at_true_values #
+        #self.catalogue_true_values = cat.apply_mask_select(catalogue_at_true_values,self.mask_select_list[1],self.pix)
 
 
 def extract_at_input_value(t_true,inv_cov,pix,beam,M_500,z,cosmology,norm_type,
@@ -1294,7 +1301,19 @@ def invert_cov(cov):
 
             if not np.any(cov[i,j,:,:]) == False:
 
-                inv_cov[i,j,:,:] = np.linalg.inv(cov[i,j,:,:])
+                if cov[i,j,:,:].any() == 0:
+
+                    inv_cov[i,j,:,:] = cov[i,j,:,:]
+
+            #    if np.linalg.det(inv_cov[i,j,:,:]) == 0. and len(inv_cov[i,j,:,:]) > 1 and np.sum(inv_cov[i,j,:,:]) > 0.:
+
+                #    print(inv_cov[i,j,:,:])
+
+                else:
+
+                    inv_cov[i,j,:,:] = np.linalg.inv(cov[i,j,:,:])
+
+    #inv_cov =  np.linalg.inv(cov)
 
     return inv_cov
 

@@ -762,7 +762,9 @@ def get_buffered_mask_fft(pix,mask_input,buffer_arcmin):
 
 #apotype: C1, C2 and Smooth
 
-def get_apodised_mask(pix,mask_input,apotype="C1",aposcale=0.2):
+def get_apodised_mask(pix,mask_input2,apotype="C1",aposcale=0.2):
+
+    mask_input = np.copy(mask_input2)
 
     mask_input[0,:] = 0.
     mask_input[:,0] = 0.
@@ -946,7 +948,7 @@ def get_hankel_transform(theta_range,function,n=512,pad=128):
 
 class RadialFourierTransform:
 
-    def __init__(self, lrange=None, rrange=None, n=512//4, pad=256//4):
+    def __init__(self, lrange=None, rrange=None, n=512, pad=256):
         """Construct an object for transforming between radially
         symmetric profiles in real-space and fourier space using a
         fast Hankel transform. Aside from being fast, this is also
@@ -1068,3 +1070,26 @@ def bin_radially(pix,map,bins_edges=None,nbins=None,theta_misc=[0.,0.]):
         binned_map[i] = np.mean(map_flattened[indices])
 
     return bins,binned_map
+
+def get_integrated_map_r(pix,map,theta_misc=[0.,0.],equality_type="less_or_equal"):
+
+    integrated_map = np.zeros(map.shape)
+    theta_map = rmap(pix).get_distance_map_wrt_centre(theta_misc)
+
+    thetas = np.unique(theta_map.flatten())
+
+    for i in range(0,len(thetas)):
+
+        indices = np.where(theta_map == thetas[i])
+
+        if equality_type == "less_or_equal":
+
+            indices_integrated = np.where(theta_map <= thetas[i])
+
+        elif equality_type == "less":
+
+            indices_integrated = np.where(theta_map < thetas[i])
+
+        integrated_map[indices] = np.mean(map[indices_integrated])
+
+    return integrated_map

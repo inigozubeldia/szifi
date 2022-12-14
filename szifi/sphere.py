@@ -4,6 +4,8 @@ import healpy as hp
 import mmf
 import maps
 import expt
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 
 class planck_maps:
 
@@ -34,7 +36,7 @@ class websky_map:
 
         for i in freqs:
 
-            self.tmaps.append(hp.read_map("/Users/user/Desktop/data/websky/" + component + "_" + str(exp.nu_eff_GHz[i])+ "_2048.fits"))
+            self.tmaps.append(hp.read_map("/rds-d4/user/iz221/hpc-work/data/websky/" + component + "_" + str(exp.nu_eff_GHz[i])+ "_2048.fits"))
 
     def get_tmap(self,i):
 
@@ -47,7 +49,7 @@ def load_planck_tmap(i):
 
     freqs = ["100","143","217","353-psb","545","857"]
 
-    return hp.read_map("/Users/user/Desktop/data/planck_data/HFI_SkyMap_" + str(freqs[i]) + "_2048_R3.01_full.fits",field=0)
+    return hp.read_map("/rds-d4/user/iz221/hpc-work/data/planck_data/HFI_SkyMap_" + str(freqs[i]) + "_2048_R3.01_full.fits",field=0)
 
 #Galaxy mask: 20, 40, 60, 70, 80, 90, 97 and 99 of sky unmasked
 
@@ -55,12 +57,12 @@ class planck_mask:
 
     def __init__(self,field=2):
 
-        self.galaxy_mask = hp.read_map('/Users/user/Desktop/data/planck_data/HFI_Mask_GalPlane-apo0_2048_R2.00.fits',field=field)
+        self.galaxy_mask = hp.read_map('/rds-d4/user/iz221/hpc-work/data/planck_data/HFI_Mask_GalPlane-apo0_2048_R2.00.fits',field=field)
         self.point_mask = np.ones(len(self.galaxy_mask))
 
         for i in range(0,6):
 
-            self.point_mask *= hp.read_map('/Users/user/Desktop/data/planck_data/HFI_Mask_PointSrc_2048_R2.00.fits',field=i)
+            self.point_mask *= hp.read_map('/rds-d4/user/iz221/hpc-work/data/planck_data/HFI_Mask_PointSrc_2048_R2.00.fits',field=i)
 
 class flat_fields:
 
@@ -154,10 +156,10 @@ class flat_fields_websky:
         self.npix = hp.nside2npix(self.maps.nside)
         self.nx = nx
         self.l = l
-        self.save_name = "/Users/user/Desktop/maps/websky_maps/websky"
+        self.save_name = "/rds-d4/user/iz221/hpc-work/maps/websky_maps/websky"
         self.component = component
 
-    def get_field(self,i,save=True,save_name="/Users/user/Desktop/maps/websky_maps/t_maps/"):
+    def get_field(self,i,save=True,save_name="/rds-d4/user/iz221/hpc-work/maps/websky_maps/t_maps/"):
 
         lon,lat = hp.pix2ang(self.nside_tile,i,lonlat=True)
 
@@ -181,7 +183,7 @@ class flat_fields_websky:
 
         return tmap
 
-    def get_all_fields(self,save=True,save_name="/Users/user/Desktop/maps/websky_maps/t_maps/",i_min=0,i_max=None):
+    def get_all_fields(self,save=True,save_name="/rds-d4/user/iz221/hpc-work/maps/websky_maps/t_maps/",i_min=0,i_max=None):
 
         if i_max is None:
 
@@ -200,9 +202,9 @@ class flat_fields_websky:
         pl.imshow(tmap[:,:,0]*mask_map*mask_tile)
         pl.show()
         """
+#l in deg
 
-
-def get_cutout(hp_map,lonlat,nx,l):
+def get_cutout(hp_map,lonlat,nx,l,coord_type="G"):
 
     [lon,lat] = lonlat
     l2 = l/2.
@@ -408,3 +410,32 @@ def get_tile_boundaries_map(nside_tile,nside_map):
             mask_tile[i] = 1.
 
     return mask_tile
+
+def get_so_mask(nside):
+
+    mask = np.zeros(hp.pixelfunc.nside2npix(nside))
+    pixel_ids = np.arange(hp.pixelfunc.nside2npix(nside))
+
+    dec_min = -63. #in degrees
+    dec_max = 23. #in degrees
+
+    glon,glat = hp.pixelfunc.pix2ang(nside,pixel_ids,lonlat=True)
+    c = SkyCoord(l=glon*u.degree, b=glat*u.degree, frame='galactic')
+    icrs = c.icrs
+    #    ra = icrs.ra.value
+    dec = icrs.dec.value
+
+    indices = np.where((dec > dec_min) & (dec < dec_max))
+    mask[indices] = 1.
+
+    return mask
+
+def glonglat_to_radec(glon,glat):
+
+    c = SkyCoord(l=glon*u.degree, b=glat*u.degree, frame='galactic')
+    icrs = c.icrs
+
+    ra = icrs.ra.value
+    dec = icrs.dec.value
+
+    return ra,dec

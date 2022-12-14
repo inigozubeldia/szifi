@@ -13,6 +13,7 @@ import astropy.cosmology as cp
 import maps
 import mmf
 import os
+import decimal
 
 class cosmology_websky:
 
@@ -25,10 +26,11 @@ class cosmology_websky:
         self.ns     = 0.965
         self.sigma8 = 0.81
         self.cosmology = cp.FlatLambdaCDM(Om0=self.Om0,H0=self.h*100.,Ob0=self.Ob0)
+        self.As = 2.079522e-09
 
 class catalogue_websky_master:
 
-    def __init__(self,mode="websky",path="/Users/user/Desktop/"):
+    def __init__(self,mode="websky",path="/rds-d4/user/iz221/hpc-work/"):
 
         if mode == "websky":
 
@@ -137,13 +139,25 @@ class catalogue_websky_master:
 
     def get_catalogue_measurement(self):
 
-        negative = -np.ones(len(self.lat))*0.5
+        catalogue = cat.cluster_catalogue()
+        catalogue.catalogue["x"] = self.x
+        catalogue.catalogue["y"] = self.y
+        catalogue.catalogue["z"] = self.z
+        catalogue.catalogue["M200m"] = self.M200m
+        catalogue.catalogue["redshift"] = self.redshift
+        catalogue.catalogue["chi"] = self.chi
+        catalogue.catalogue["vrad"] = self.vrad
+        catalogue.catalogue["r_s"] = self.r_s
+        catalogue.catalogue["R200m"] = self.R200m
+        catalogue.catalogue["theta_200m"] = self.theta_200m
+        catalogue.catalogue["lon"] = self.lon
+        catalogue.catalogue["lat"] = self.lat
+        catalogue.catalogue["M500c"] = self.M500c
+        catalogue.catalogue["R500c"] = self.R500c
+        catalogue.catalogue["theta_500c"] = self.theta_500c
+        catalogue.catalogue["y0"] = self.y0
 
-        return cat.cluster_catalogue(q_opt=negative
-        ,y0=self.y0,theta_500=self.theta_500c*180.*60./np.pi,theta_x=self.theta_x
-        ,theta_y=self.theta_y,
-        pixel_ids=negative,lat=self.lat,
-        lon=self.lon,m_500=self.M500c,z=self.redshift)
+        return catalogue
 
 class catalogue_websky:
 
@@ -356,7 +370,7 @@ def get_noise_maps(ptf_convolution=True):
 
 class cutouts_websky:
 
-    def __init__(self,path="/Users/user/Desktop/",inpaint_flag=False,mode="websky"):
+    def __init__(self,path="/rds-d4/user/iz221/hpc-work/",inpaint_flag=False,mode="websky"):
 
         self.name = path + "maps/websky_maps/t_maps/"
         self.name_mask = path + "maps/planck_maps/planck_field_"
@@ -421,10 +435,12 @@ class cutout_websky:
 
     def __init__(self,i,name="maps/websky_maps/t_maps/",
     name_mask="maps/planck_maps/planck_field_",mask_cib=False,sigma_mask=None,inpaint_flag=False,mode="real",
-    path = "/Users/user/Desktop/"):
+    path = "/rds-d4/user/iz221/hpc-work",add_path=False):
 
-        #name_mask = path + name_mask
-        #name = path + name
+        if add_path == True:
+
+            name_mask = path + name_mask
+            name = path + name
 
         [mask_galaxy,mask_point,mask_tile] = np.load(name_mask + str(i) + "_mask.npy")
 
@@ -453,7 +469,7 @@ class cutout_websky:
         self.cmb = np.load(name + "_cmb_" + str(i) + "_tmap.npy")[0,:,:,:]
         self.cib_masked = np.load(name + "_cib_masked_" + str(i) + "_tmap.npy")[0,:,:,:]
     #    self.noise_no_ptf = np.load(name + "_noise_no_ptf_" + str(i) + "_tmap.npy")[0,:,:,:]
-        self.mask_point_cib = np.load(path + "maps/websky_maps/cib_mask_" + str(i) + ".npy")
+        self.mask_point_cib = np.load(path + "maps/websky_maps/cib_mask/cib_mask_" + str(i) + ".npy")
 
         if mask_cib == True:
 
@@ -985,10 +1001,10 @@ class detections_websky:
 
                 j += 1
 
-class detections_websky_paper:
+class detections_websky_paper_old:
 
     def __init__(self,data_label,noise_find_label,suffix="",i_min=0,i_max=100,
-    indices=None,cib="random",name=None,path="/Users/user/Desktop/catalogues_def/websky/"):
+    indices=None,cib="random",name=None,path="/rds-d4/user/iz221/hpc-work/websky_cib/"):
 
         if cib == "random":
 
@@ -1062,6 +1078,73 @@ class detections_websky_paper:
 
                 j += 1
 
+class detections_websky_paper:
+
+    def __init__(self,suffix="",i_min=0,i_max=768,
+    indices=None,cib="random",name=None,path="/rds-d4/user/iz221/hpc-work/catalogues_def/websky_cib_hpc/"):
+
+        if indices is None:
+
+            indices = np.arange(i_min,i_max)
+
+        if cib == "random":
+
+            self.prename = "paper_extr_cib_random_nops"
+
+        elif cib == "":
+
+            self.prename = "paper_extr_cib_nops"
+
+        full_name = path + name + suffix
+
+        self.results = cat.results_detection()
+
+        if indices is None:
+
+            indices = range(i_min,i_max)
+            self.sigma_matrix = np.zeros((i_max-i_min,15))
+            self.sigma_matrix_noit = np.zeros((i_max-i_min,15))
+            self.theta_vec_matrix = np.zeros((i_max-i_min,15))
+
+        else:
+
+            self.sigma_matrix = np.zeros((len(indices),15))
+            self.sigma_matrix_noit = np.zeros((len(indices),15))
+            self.theta_vec_matrix = np.zeros((len(indices),15))
+
+        j = 0
+
+        for i in indices:
+
+            name = full_name + "_"  + str(i) + ".npy"
+            name_info = full_name + "_"  + str(i) + "_info.npy"
+
+            if os.path.isfile(name) == True:
+
+                results_new = cat.results_detection()
+
+                results_new.catalogues = np.load(name,allow_pickle=True)[()]
+                [results_new.theta_500_sigma,results_new.sigma_vec,results_new.sigma_vec_noit] = np.load(name_info,allow_pickle=True)
+
+                self.sigma_matrix[j,:] = results_new.sigma_vec
+                self.sigma_matrix_noit[j,:] = results_new.sigma_vec_noit
+                self.theta_vec_matrix[j,:] = results_new.theta_500_sigma
+
+                self.results.sigma_vecs[str(i)] = results_new.sigma_vec
+                self.results.sigma_noit_vecs[str(i)] = results_new.sigma_vec_noit
+                self.results.theta_500_vecs[str(i)] = results_new.theta_500_sigma
+                self.results.append(results_new)
+
+                j += 1
+    #np.save("sigma_matrix_mmf_6.npy",self.sigma_matrix)
+
+    def apply_mask(self,mask): #full sky implementation
+
+        for key in self.results.catalogues.keys():
+
+            self.results.catalogues[key] = cat.apply_mask_select_fullsky(self.results.catalogues[key],mask)
+
+
 class detections_planck:
 
     def __init__(self,name,i_min=0,i_max=100,indices=None):
@@ -1085,7 +1168,7 @@ class detections_planck:
 
         j = 0
 
-        full_name = "/Users/user/Desktop/catalogues_def/websky/" + name
+        full_name = "/rds-d4/user/iz221/hpc-work/catalogues_def/websky/" + name
 
         for i in indices:
 
@@ -1121,7 +1204,7 @@ class detections_websky_processed:
 
                 prename = name
 
-            full_name = "/Users/user/Desktop/catalogues_def/processed_websky_paper/" + prename  + ".npy"
+            full_name = "/rds-d4/user/iz221/hpc-work/catalogues_def/processed_websky_paper/" + prename  + ".npy"
             (catalogue_obs,catalogue_true,metadata) = np.load(full_name,allow_pickle=True)
 
             print(full_name)
@@ -1146,11 +1229,30 @@ class detections_websky_processed:
                 self.catalogue_obs = catalogue_obs_ret
                 self.catalogue_true = catalogue_true_ret
 
+#new class
+
+class detections_processed:
+
+    def __init__(self,name,path="/rds-d4/user/iz221/hpc-work/catalogues_def/websky_cib_def/"):
+
+        self.full_name = path + name + "_processed.npy"
+
+        #print(self.full_name)
+
+        self.results = np.load(self.full_name,allow_pickle=True)[()].results
+
+    def apply_mask(self,mask):
+
+        for key in self.results.catalogues.keys():
+
+            self.results.catalogues[key] = cat.apply_mask_select_fullsky(self.results.catalogues[key],mask)
+
+
 class detections_planck_processed:
 
     def __init__(self,name,pixel_ids=None):
 
-        full_name = "/Users/user/Desktop/catalogues_def/processed_planck/" + name  + ".npy"
+        full_name = "/rds-d4/user/iz221/hpc-work/catalogues_def/processed_planck/" + name  + ".npy"
         (catalogue_obs,catalogue_obs_noit,metadata) = np.load(full_name,allow_pickle=True)
 
         self.catalogue_obs = catalogue_obs
@@ -1172,7 +1274,7 @@ class detections_planck_processed:
 
 
 def draw_circles(catalogue_tile,img,pix,scaling=1.,theta_500_units="rad",
-save_name=None,plot=True,cmap=pl.get_cmap("RdYlBu"),pixel_id=0,title=None):
+save_name=None,plot=True,cmap=pl.get_cmap("RdYlBu"),pixel_id=0,title=None,centre_axis="origin",colorbar=False):
 
     nx = pix.nx
     dx = pix.dx
@@ -1189,6 +1291,8 @@ save_name=None,plot=True,cmap=pl.get_cmap("RdYlBu"),pixel_id=0,title=None):
 
     theta_500 = theta_500*180.*60./np.pi
 
+
+
     pl.rc('text', usetex=True)
     pl.rc('font', family='serif')
     fig,ax = pl.subplots(1)
@@ -1200,12 +1304,31 @@ save_name=None,plot=True,cmap=pl.get_cmap("RdYlBu"),pixel_id=0,title=None):
 
         ax.set_title(title)
 
-    img_file = ax.imshow(img,cmap=cmap,extent=[0,extent_arcmin,0,extent_arcmin],interpolation=None)
+    if centre_axis == "origin":
+
+        img_file = ax.imshow(img,cmap=cmap,extent=[0,extent_arcmin,0,extent_arcmin],interpolation=None)
+
+    else:
+
+        img_file = ax.imshow(img,cmap=cmap,extent=[-extent_arcmin*0.5,extent_arcmin*0.5,-extent_arcmin*0.5,extent_arcmin*0.5],interpolation=None)
     #fig.colorbar(img_file,ax=ax)
+
+    if colorbar == True:
+
+        cbar = fig.colorbar(img_file,ax=ax)
+    #    cbar.set_label("$\mu K$", rotation=270)
+        cbar.ax.set_title("$\mu K$")
+
+    pl.tight_layout()
 
     xc = theta_x*180.*60./np.pi
     yc = ((theta_y))*180.*60./np.pi
     r = theta_500/scaling#/dx/scaling
+
+    if centre_axis == "centre":
+
+        xc = xc - 0.5*extent_arcmin
+        yc = yc - 0.5*extent_arcmin
 
     for i in range(0,len(theta_500)):
 
@@ -1216,9 +1339,11 @@ save_name=None,plot=True,cmap=pl.get_cmap("RdYlBu"),pixel_id=0,title=None):
 
         pl.savefig(save_name)
 
+
     if plot == True:
 
         pl.show()
+
 
     pl.close()
 
@@ -1298,3 +1423,64 @@ save_name=None,plot=True,cmap=pl.get_cmap("RdYlBu"),pixel_id=0):
         pl.show()
 
     pl.close()
+
+class cutout_hr:
+
+    def __init__(self,pixel_id,freqs=None,exp=None):
+
+        self.nx = 1024*1
+        self.l = 14.8
+        self.dx = self.l/180.*np.pi/self.nx
+        self.pix = maps.pixel(self.nx,self.dx)
+        self.freqs = freqs
+
+        if exp is not None:
+
+            self.freqs = exp.nu_eff
+
+        self.map = np.zeros((self.nx,self.nx,len(self.freqs)))
+        self.freqs_GHz = self.freqs/1e9
+
+        for i in range(0,len(self.freqs)):
+
+            self.map[:,:,i] = np.load("/rds-d4/user/iz221/hpc-work/maps/hr_websky_maps/total_maps_hr_cutout_" + str(int(self.freqs_GHz[i])) +  "_" + str(pixel_id) + "_1024.npy")
+
+
+class cutout_hr_beam_convolved:
+
+    def __init__(self,pixel_id,freqs=None,exp=None,suffix=""):
+
+        self.nx = 1024*1
+        self.l = 14.8
+        self.dx = self.l/180.*np.pi/self.nx
+        self.pix = maps.pixel(self.nx,self.dx)
+        self.freqs = freqs
+
+        if exp is not None:
+
+            self.freqs = exp.nu_eff
+            self.FWHM = exp.FWHM
+
+        self.ksz = np.zeros((self.nx,self.nx,len(self.freqs)))
+        self.tsz = np.zeros((self.nx,self.nx,len(self.freqs)))
+        self.cmb = np.zeros((self.nx,self.nx,len(self.freqs)))
+        self.cib = np.zeros((self.nx,self.nx,len(self.freqs)))
+
+        self.freqs_GHz = self.freqs/1e9
+
+        for i in range(0,len(self.freqs)):
+
+            self.tsz[:,:,i] = np.load("/rds-d4/user/iz221/hpc-work/maps/hr_websky_maps/total_maps_hr_cutout_" + str(int(self.freqs_GHz[i])) + "_" + float_to_str(self.FWHM[i]) + suffix + "_" + str(pixel_id) + "_tsz_1024.npy")
+            self.ksz[:,:,i] = np.load("/rds-d4/user/iz221/hpc-work/maps/hr_websky_maps/total_maps_hr_cutout_" + str(int(self.freqs_GHz[i])) + "_" + float_to_str(self.FWHM[i]) + suffix + "_" + str(pixel_id) + "_ksz_1024.npy")
+            self.cmb[:,:,i] = np.load("/rds-d4/user/iz221/hpc-work/maps/hr_websky_maps/total_maps_hr_cutout_" + str(int(self.freqs_GHz[i])) + "_" + float_to_str(self.FWHM[i]) + suffix + "_" + str(pixel_id) + "_cmb_1024.npy")
+            self.cib[:,:,i] = np.load("/rds-d4/user/iz221/hpc-work/maps/hr_websky_maps/total_maps_hr_cutout_" + str(int(self.freqs_GHz[i])) + "_" + float_to_str(self.FWHM[i]) + suffix + "_" + str(pixel_id) + "_cib_1024.npy")
+
+        self.map = self.ksz + self.tsz + self.cmb + self.cib
+
+def float_to_str(f):
+
+    ctx = decimal.Context()
+    ctx.prec = 20
+    d1 = ctx.create_decimal(repr(f))
+
+    return format(d1, 'f')

@@ -546,7 +546,7 @@ class catalogue_comparer:
 
         return bins_centres,theta_500_bias,theta_500_bias_std
 
-def get_completeness_err(bins_edges,catalogue_true,catalogue_obs,q_th=4.5,n_boots=100):
+def get_completeness_err(bins_edges,catalogue_true,catalogue_obs,q_th=4.5,n_boots=100,type="std"):
 
     completeness_boots = np.zeros((n_boots,len(bins_edges)-1))
 
@@ -560,9 +560,18 @@ def get_completeness_err(bins_edges,catalogue_true,catalogue_obs,q_th=4.5,n_boot
         bins,completeness,completeness_err = comparison.get_completeness(bins_edges,q_th=q_th)
         completeness_boots[i,:] = completeness
 
-    completeness_err = np.std(completeness_boots,axis=0)
+    if type == "std":
 
-    return bins,completeness_err
+        completeness_err = np.std(completeness_boots,axis=0)
+        ret = bins,completeness_err
+
+    elif type == "quantile":
+
+        completeness_low = np.quantile(completeness_boots,0.5-0.341,axis=0)
+        completeness_high = np.quantile(completeness_boots,0.5+0.341,axis=0)
+        ret = bins,completeness_low,completeness_high
+
+    return ret
 
 
 def get_erf_completeness(q_true,q_th=4.5,opt_bias=True,sigma=1.):
@@ -652,8 +661,10 @@ class results_detection:
     def __init__(self):
 
         self.catalogues = {}
-        self.sigma_vec = None
-        self.sigma_vec_noit = None
+        self.sigma_vecs = {}
+        self.sigma_noit_vecs = {}
+        self.theta_500_vecs = {}
+
         self.theta_500_sigma = None
         self.f_sky = None
         self.info = None
@@ -691,6 +702,33 @@ class results_detection:
         for key in self.catalogues.keys():
 
             self.catalogues[key].get_lonlat(n_side,i,pix)
+
+    def append(self,results_new):
+
+        for key in results_new.catalogues.keys():
+
+                if key in self.catalogues:
+
+                    self.catalogues[key].append(results_new.catalogues[key],append_keys="new")
+
+                else:
+
+                    self.catalogues[key] = results_new.catalogues[key]
+
+
+    def make_copy(self):
+
+        results_copy = results_detection()
+        results_copy.sigma_vec = self.sigma_vec
+        results_copy.sigma_vec_noit = self.sigma_vec_noit
+        results_copy.theta_500_sigma = self.theta_500_sigma
+        results_copy.f_sky = self.f_sky
+        results_copy.info = self.info
+
+        for key in self.catalogues.keys():
+
+            results_copy.catalogues[key] = self.catalogues[key]
+
 
     """
     def initialise(self):
@@ -925,20 +963,22 @@ def get_detection_cib_name(name,cib_random,name_cmmf,n_freqs,suffix=""):
 
     return name
 
-def get_all_detection_cib_names(suffix=""):
+def get_all_detection_cib_names(suffix="",get_cib_random=False):
 
     names = [
+    #"tnoi_fixed_apodold",
     "it_fixed_apodold",
-    #"it_find_apodold",
     ]
     cib_randoms = [True,False]
     names_cmmf_0 = ["mmf","cmmf","cmmf_beta","cmmf_betaT","cmmf_betaTbeta"]
-    names_cmmf = [["mmf","cmmf"],names_cmmf_0,names_cmmf_0]
+    names_cmmf_0 = ["mmf"]
+    names_cmmf = [names_cmmf_0,names_cmmf_0,names_cmmf_0]
     n_freqs = [4,5,6]
 
     detection_names = []
+    cib_randoms_label = []
 
-    for k in range(2,len(n_freqs)):
+    for k in range(0,len(n_freqs)):
     #for k in range(0,2):
 
         nfreq = n_freqs[k]
@@ -954,6 +994,7 @@ def get_all_detection_cib_names(suffix=""):
 
                     name_cmmf = "mmf"
                     detection_names.append(get_detection_cib_name(name,cib_random,name_cmmf,nfreq,suffix=suffix))
+                    cib_randoms_label.append(cib_random)
 
                 else:
 
@@ -961,10 +1002,19 @@ def get_all_detection_cib_names(suffix=""):
 
                         name_cmmf = names_cmmf[k][l]
                         detection_names.append(get_detection_cib_name(name,cib_random,name_cmmf,nfreq,suffix=suffix))
+                        cib_randoms_label.append(cib_random)
 
-    return detection_names
+    if get_cib_random == True:
 
-def get_all_detection_cib_robustness_names(channel):
+        ret = detection_names,cib_randoms_label
+
+    else:
+
+        ret = detection_names
+
+    return ret
+
+def get_all_detection_cib_robustness_names_2(channel):
 
     base = "paper_extr_cib_nops_it_fixed_apodold_cmmf"
 
@@ -990,6 +1040,80 @@ def get_all_detection_cib_robustness_names(channel):
                 detection_names.append(name)
 
     return detection_names
+
+def get_all_detection_cib_robustness_names(get_cib_random=False,true_value_only=False):
+
+    names = ["paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_-2_cmmf_4",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_-2_cmmf_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_-2_cmmf_beta_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_-2_cmmf_betaT_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_-1_cmmf_4",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_-1_cmmf_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_-1_cmmf_beta_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_-1_cmmf_betaT_6",
+
+            "paper_extr_cib_nops_it_fixed_apodold_cmmf_4_cib_psmasked",
+            "paper_extr_cib_nops_it_fixed_apodold_cmmf_6_cib_psmasked",
+            "paper_extr_cib_nops_it_fixed_apodold_cmmf_beta_6_cib_psmasked",
+            "paper_extr_cib_nops_it_fixed_apodold_cmmf_betaT_6_cib_psmasked",
+
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_1_cmmf_4",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_1_cmmf_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_1_cmmf_beta_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_1_cmmf_betaT_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_2_cmmf_4",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_2_cmmf_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_2_cmmf_beta_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_beta_2_cmmf_betaT_6",
+
+
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_-2_cmmf_4",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_-2_cmmf_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_-2_cmmf_beta_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_-2_cmmf_betaT_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_-1_cmmf_4",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_-1_cmmf_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_-1_cmmf_beta_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_-1_cmmf_betaT_6",
+
+            "paper_extr_cib_nops_it_fixed_apodold_cmmf_4_cib_psmasked",
+            "paper_extr_cib_nops_it_fixed_apodold_cmmf_6_cib_psmasked",
+            "paper_extr_cib_nops_it_fixed_apodold_cmmf_beta_6_cib_psmasked",
+            "paper_extr_cib_nops_it_fixed_apodold_cmmf_betaT_6_cib_psmasked",
+
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_1_cmmf_4",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_1_cmmf_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_1_cmmf_beta_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_1_cmmf_betaT_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_2_cmmf_4",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_2_cmmf_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_2_cmmf_beta_6",
+            "paper_extr_cib_nops_it_fixed_apodold_cib_psmasked_robust_T0_2_cmmf_betaT_6"]
+
+
+    if true_value_only == True:
+
+        names = ["paper_extr_cib_nops_it_fixed_apodold_cmmf_4_cib_psmasked",
+        "paper_extr_cib_nops_it_fixed_apodold_cmmf_6_cib_psmasked",
+        "paper_extr_cib_nops_it_fixed_apodold_cmmf_beta_6_cib_psmasked",
+        "paper_extr_cib_nops_it_fixed_apodold_cmmf_betaT_6_cib_psmasked"]
+
+    cib_randoms = [False] * len(names)
+
+    for i in range(0,len(names)):
+
+        names[i] = names[i] + "_websky"
+
+    if get_cib_random == False:
+
+        ret = names
+
+    else:
+
+        ret = names,cib_randoms
+
+    return ret
+
 
 def convert_catalogue(cat_old):
 
