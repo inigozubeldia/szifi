@@ -1,6 +1,6 @@
 ## SZiFi, the Sunyaev-Zeldovich iterative Finder
 
-SZiFi is a Python implementation of the iterative multi-frequency matched filter (iMMF) cluster-finding method, which is described in detail in [this paper](https://arxiv.org/abs/2204.13780). It can be used to detect galaxy clusters with mm intensity maps through their thermal Sunyaev-Zeldovich (tSZ) signal. As a new feature, it allows for foreground deprojection via a spectrally constrained MMF, or sciMMF (see this [other paper](https://arxiv.org/abs/2212.07410). It can also be used for point source detection.
+SZiFi is a Python implementation of the iterative multi-frequency matched filter (iMMF) cluster-finding method, which is described in detail in [this paper](https://arxiv.org/abs/2204.13780). It can be used to detect galaxy clusters with mm intensity maps through their thermal Sunyaev-Zeldovich (tSZ) signal. As a new feature, it allows for foreground deprojection via a spectrally constrained MMF, or sciMMF (see this [other paper](https://arxiv.org/abs/2212.07410) ). It can also be used for point source detection.
 
 SZiFi has been tested extensively on *Planck* simulated data, and its performance is currently being tested in the context of the Atacama Cosmology Telescope (ACT) and the Simons Observatory (S0).
 
