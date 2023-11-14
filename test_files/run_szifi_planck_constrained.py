@@ -2,7 +2,7 @@ import szifi
 import numpy as np
 import pylab as pl
 
-#Sample programme that runs SZiFi on Planck data for two sky tiles.
+#Sample programme that runs SZiFi on Planck data for two sky tiles with CIB deprojection.
 #It assumes that the mask coupling matrix
 #has already been calculated (see get_coupling_matrix.py)
 
@@ -12,12 +12,44 @@ params_szifi = szifi.params_szifi_default
 params_data = szifi.params_data_default
 params_model = szifi.params_model_default
 
-params_szifi = szifi.params_szifi_default
+params_szifi["mmf_type"] = "spectrally_constrained"
+params_szifi["cmmf_type"] = "general"
 
 #Input data
 
 params_data["field_ids"] = [0,1]
 data = szifi.input_data(params_szifi=params_szifi,params_data=params_data)
+
+#Deprojection data
+
+freqs = params_szifi["freqs"]
+
+params_model["alpha_cib"] = 0.36 #also from Planck paper
+params_model["T0_cib"] = 20.7 # 24.4, this from Planck paper (https://arxiv.org/pdf/1309.0382.pdf), instead of 1.6
+params_model["beta_cib"] = 1.6 # 1.75, this same
+
+cib_model = szifi.cib_model(params_model=params_model)
+z_eff_cib = 0.2
+cib_sed = cib_model.get_sed_muK_experiment(experiment=data.data["experiment"],z=z_eff_cib)
+cib_model.get_sed_first_moments_experiment(experiment=data.data["experiment"],z=z_eff_cib)
+
+#Deprojecting CIB SED
+
+a_matrix = np.zeros((len(freqs),2))
+a_matrix[:,0] = data.data["experiment"].tsz_sed[freqs]
+a_matrix[:,1] = cib_sed[freqs]
+params_szifi["a_matrix"] = a_matrix
+
+#Alternatively, deprojecting one moment (can choose between "betaT" and "beta"), comment out if only the SED is to be deprojected
+
+a_matrix = np.zeros((len(freqs),3))
+a_matrix[:,0] = data.data["experiment"].tsz_sed[freqs]
+a_matrix[:,1] = cib_sed[freqs]
+a_matrix[:,2] = cib_model.moments["betaT"]
+
+#Set mixing matrix
+
+params_szifi["a_matrix"] = a_matrix
 
 #Find clusters
 
