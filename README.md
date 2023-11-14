@@ -4,7 +4,7 @@ SZiFi is a Python implementation of the iterative multi-frequency matched filter
 
 SZiFi has been tested extensively on *Planck* simulated data, and its performance is currently being tested in the context of the Atacama Cosmology Telescope (ACT) and the Simons Observatory (SO).
 
-If you have any questions about how to use the code, please write to me at inigo.zubeldia@ast.cam.ac.uk.
+If you have any questions about how to use the code, please write to me at inigo.zubeldia (at) ast cam ac uk.
 
 ### Installation
 
