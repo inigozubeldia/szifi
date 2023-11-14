@@ -532,103 +532,74 @@ def get_R_Delta(M_Delta,z,cosmology,Delta,crit):
 
     return R_Delta
 
-#REVIEW
 
 class cib_model: #Modified blackbody, model used in Websky.
 
-    def __init__(self,beta=None,T0=None,exp=None,alpha=None):
+    def __init__(self,params_model=params_model_default):
 
-        if beta is None:
+        self.alpha = params_model["alpha_cib"]
+        self.beta = params_model["beta_cib"]
+        self.gamma = params_model["gamma_cib"]
+        self.T0 = params_model["T0_cib"]
 
-            beta = 1.6 #Websky value
-
-        if T0 is None:
-
-            T0 = 20.7 #Websky value
-
-        if alpha is None:
-
-            alpha = 0.2 #Websky value
-
-        self.beta = beta
-        self.gamma = 1.8
-        self.alpha = alpha
-        self.T0 = T0
         self.nu0 = 10000.
         self.nu_pivot = 1#3e9
+
         self.moments = {}
-        self.exp = exp
 
-    #Input nu is experiment nu (i.e. at z = 0). Returns intensity in T_CMB units.
+    #Input nu is experiment nu (i.e. at z = 0).
 
-    def get_Theta(self,nu,z,units="T_CMB",beta=None):
+    def get_sed_SI(self,nu=None,z=None):
 
-        if beta is not None:
-
-            self.beta = beta
+        print("nu",nu)
+        print(self.beta,self.T0,self.alpha,self.nu_pivot)
 
         nup = nu*(1.+z)
+        sed = (nup/self.nu_pivot)**self.beta*planckian(nup,self.T0*(1+z)**self.alpha)
+        print("Theta_0",sed)
 
-        Theta_0 = (nup/self.nu_pivot)**self.beta*planckian(nup,self.T0*(1+z)**self.alpha)
+        return sed
 
-        if units == "T_CMB":
+    #Input nu is experiment nu (i.e. at z = 0).
 
-            if self.exp.name == "Planck_real":
+    def get_sed_muK(self,nu=None,z=None):
 
-                Theta = Theta_0*self.exp.MJysr_to_muK_websky
+        sed = self.get_sed_SI(nu=nu,z=z)
 
-            else:
+        return sed/dBnudT(nu)
 
-                Theta = Theta_0*websky_conversions().get_MJysr2muK(self.exp.nu_eff)
+    def get_sed_muK_experiment(self,experiment=None,z=None):
 
-        elif units == "SI":
+        sed = self.get_sed_SI(nu=experiment.nu_eff,z=z)
 
-            Theta = Theta_0
 
-        return Theta
+        sed = sed*experiment.MJysr_to_muK
 
-    def get_Theta_1d(self,nu,z,units="T_CMB"):
 
-        nup = nu*(1.+z)
+        return sed
 
-        Theta_1_beta = self.get_Theta(nu,z,units=units)*np.log(nup/self.nu_pivot)
+    def get_sed_first_moments_SI(self,nu=None,z=None,moment_parameters=["betaT","beta"]):
 
         const = constants()
-        exponential = np.exp(const.h*nup/( const.k_B*self.T0*(1+z)**self.alpha))
+        nup = nu*(1.+z)
 
-        Theta_1_betaT = -2.*const.h*nup**(3.+self.beta)/(const.c_light**2*(exponential-1.)**2)*exponential*const.h*nup/const.k_B
+        if "beta" in moment_parameters:
 
-        if units == "T_CMB":
+            self.moments["beta"] = self.get_sed_SI(nu=nu,z=z)*np.log(nup/self.nu_pivot)
 
-            if self.exp.name == "Planck_real":
+        if "betaT" in moment_parameters:
 
-                Theta_1_betaT = Theta_1_betaT*self.exp.MJysr_to_muK_websky
-
-            else:
-
-                Theta_1_betaT = Theta_1_betaT*websky_conversions().get_MJysr2muK(self.exp.nu_eff)
+            exponential = np.exp(const.h*nup/(const.k_B*self.T0*(1+z)**self.alpha))
+            self.moments["betaT"] = -2.*const.h*nup**(3.+self.beta)/(const.c_light**2*(exponential-1.)**2)*exponential*const.h*nup/const.k_B
 
 
-        self.Theta_1_betaT = Theta_1_betaT
-        self.Theta_1_beta = Theta_1_beta
-        self.moments["betaT"] = Theta_1_betaT
-        self.moments["beta"] = Theta_1_beta
+    def get_sed_first_moments_experiment(self,experiment,z=None,moment_parameters=["betaT","beta"]):
 
-        return Theta_1_beta,Theta_1_betaT
+        self.get_sed_first_moments_SI(nu=experiment.nu_eff,z=z,moment_parameters=moment_parameters)
 
-    def get_sed_exp(self,z,beta=None):
+        for moment_parameter in moment_parameters:
 
-        nu_vec = self.exp.nu_eff
-
-        return (nu_vec,self.get_Theta(nu_vec,z,beta=beta))
-
-    def get_sed_1d_exp(self,z,units="T_CMB"):
-
-        nu_vec = self.exp.nu_eff
-
-        Theta_1_beta,Theta_1_betaT = self.get_Theta_1d(nu_vec,z,units=units)
-
-        return Theta_1_beta,Theta_1_betaT
+            self.moments[moment_parameter] = self.moments[moment_parameter]*experiment.MJysr_to_muK
 
 
 #nu in Hz, T in K

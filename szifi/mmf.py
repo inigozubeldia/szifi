@@ -85,7 +85,7 @@ class cluster_finder:
 
             if self.params_szifi["extraction_mode"] == "fixed":
 
-                self.fixed_catalogue = self.data_file["fixed_catalogue"][field_id]
+                self.catalogue_fixed = self.data_file["catalogue_input"][field_id]
 
             #Select frequency channels to use
 
@@ -233,7 +233,7 @@ class cluster_finder:
 
                 #SZiFi in cluster finding mode: blind cluster detection
 
-                if self.params_szifi["extraction_mode"] == "find" or (self.params_szifi["extraction_mode"] == "fixed" and self.it == True):# and i < self.max_it):
+                if self.params_szifi["extraction_mode"] == "find" or (self.params_szifi["extraction_mode"] == "fixed" and self.params_szifi["iterative"] == True):# and i < self.max_it):
 
                     if self.rank == 0:
 
@@ -267,15 +267,13 @@ class cluster_finder:
 
                             print("Extraction for input catalogue")
 
-                        true_catalogue_selected = self.fixed_catalogue
-
                         self.filtered_maps.extract_at_true_values(self.t_obs,
-                        true_catalogue_selected)
+                        self.catalogue_fixed)
                         catalogue_obs = self.filtered_maps.catalogue_true_values
 
                         self.results.catalogues["catalogue_fixed_" + str(i)] = catalogue_obs
 
-                        print("q fixed",np.flip(np.sort(self.results.catalogues["catalogue_fixed_" + str(i)].catalogue["q_opt"])))
+                        print("Fixed SNR",np.flip(np.sort(self.results.catalogues["catalogue_fixed_" + str(i)].catalogue["q_opt"])))
 
                 #Extract true SNR
 
@@ -289,7 +287,7 @@ class cluster_finder:
                     if (con1 or con2 or con3 or con4):
 
                         self.filtered_maps.extract_at_true_values(self.t_true,
-                        true_catalogue_selected,
+                        self.catalogue_fixed,
                         comp_to_calculate=self.params_szifi["comp_to_calculate"],
                         profile_type=self.params_model["profile_type"])
                         catalogue_true_values = self.filtered_maps.catalogue_true_values
@@ -511,17 +509,17 @@ class filter_maps:
 
     #Apply MMF for input catalogue
 
-    def extract_at_true_values(self,t_true,true_catalogue,subgrid_label=True):
+    def extract_at_true_values(self,t_true,true_catalogue):
 
-        if self.params_szifi["apod_type"] == "old":
+        if self.params["apod_type"] == "old":
 
             mask_map_t = clone_map_freq(self.mask_map,t_true.shape[2])
             t_true = t_true*mask_map_t
 
         n_clus = len(true_catalogue.catalogue["theta_x"])
 
-        q_opt = np.zeros((n_clus,len(comp_to_calculate)))
-        y0_est = np.zeros((n_clus,len(comp_to_calculate)))
+        q_opt = np.zeros((n_clus,len(self.params["comp_to_calculate"])))
+        y0_est = np.zeros((n_clus,len(self.params["comp_to_calculate"])))
 
         if self.rank == 0:
 
@@ -531,12 +529,8 @@ class filter_maps:
 
         for i in range(0,n_clus):
 
-            if self.rank == 0:
-
-                print("theta_500",true_catalogue.catalogue["theta_500"][i])
-
             z = 0.2 #true_catalogue.z[i]
-            M_500 = model.get_m_500(true_catalogue.catalogue["theta_500"][i],z,self.cosmology)
+            M_500 = get_m_500(true_catalogue.catalogue["theta_500"][i],z,self.cosmology)
 
             q_extracted,y0_extracted,q_map = extract_at_input_value(t_true,
             self.inv_cov,
@@ -549,22 +543,20 @@ class filter_maps:
             true_catalogue.catalogue["theta_x"][i],
             true_catalogue.catalogue["theta_y"][i],
             self.params["lrange"],
-            subgrid_label=subgrid_label,
             apod_type=self.params["apod_type"],
-            path=self.params["path"],
             mmf_type=self.params["mmf_type"],
             cmmf_prec=self.cmmf,
             freqs=self.params["freqs"],
             exp=self.exp,
             comp_to_calculate=self.params["comp_to_calculate"],
-            profile_type=self.params["profile_type"])
+            profile_type=self.params_model["profile_type"])
 
             q_opt[i,:] = q_extracted
             y0_est[i,:] = y0_extracted
 
-            if self.save_maps == True:
+            if self.rank == 0:
 
-                np.save(self.save_name,q_map)
+                print("theta_500",true_catalogue.catalogue["theta_500"][i])
 
         catalogue_at_true_values = cluster_catalogue()
 
@@ -579,7 +571,7 @@ class filter_maps:
 
         #Extraction of other components
 
-        for i in range(1,len(comp_to_calculate)):
+        for i in range(1,len(self.params["comp_to_calculate"])):
 
             catalogue_at_true_values.catalogue["q_c" + str(i)] = q_opt[:,i]
             catalogue_at_true_values.catalogue["c" + str(i)] = y0_est[:,i]
@@ -589,18 +581,17 @@ class filter_maps:
 #Apply MMF for input catalogue
 
 def extract_at_input_value(t_true,inv_cov,pix,beam,M_500,z,cosmology,norm_type,
-theta_x,theta_y,lrange,apod_type="old",path="/Users/user/Desktop/",
-mmf_type="standard",cmmf_prec=None,freqs=[0,1,2,3,4,5],exp=None,comp_to_calculate=[0],
-profile_type="arnaud"):
+theta_x,theta_y,lrange,apod_type=None,mmf_type=None,cmmf_prec=None,
+freqs=None,exp=None,comp_to_calculate=None,profile_type=None):
 
-    nfw = gnfw(M_500,z,cosmology,path=path,type=profile_type)
+    nfw = gnfw(M_500,z,cosmology,type=profile_type)
 
     if apod_type == "old":
 
         t_true = filter_tmap(t_true,pix,lrange)
 
-        q_opt = np.zeros(len(comp_to_calculate))
-        y0_est = np.zeros(len(comp_to_calculate))
+    q_opt = np.zeros(len(comp_to_calculate))
+    y0_est = np.zeros(len(comp_to_calculate))
 
     tem,tem_nc = nfw.get_t_map_convolved(pix,exp,beam=beam,get_nc=True,sed=False)
     tem = tem/nfw.get_y_norm(norm_type)
@@ -818,10 +809,10 @@ class scmmf_precomputation:
 
             mask = np.ones((pix.nx,pix.ny,len(freqs)))
 
-        if self.cmmf_type == "one_dep" and mmf_type == "spectrally constrained":
+        if self.cmmf_type == "one_dep" and mmf_type == "spectrally_constrained":
 
-            self.sed_a = a_matrix[:,0][freqs] #exp.tsz_f_nu[freqs]
-            self.sed_b = a_matrix[:,1][freqs] #sed_b[freqs]
+            self.sed_a = a_matrix[:,0][freqs]
+            self.sed_b = a_matrix[:,1][freqs]
 
             a_map_fft = np.ones((pix.nx,pix.nx,len(freqs)))
             a_map_fft = get_tmap_times_fvec(a_map_fft,self.sed_a)
@@ -836,7 +827,7 @@ class scmmf_precomputation:
             self.a_dot_b = get_inv_cov_dot(np.conjugate(a_map_fft),inv_cov,b_map_fft)
             self.b_dot_b = get_inv_cov_dot(np.conjugate(b_map_fft),inv_cov,b_map_fft)
 
-        elif self.cmmf_type == "general" and mmf_type == "spectrally constrained":
+        elif self.cmmf_type == "general" and mmf_type == "spectrally_constrained":
 
             #a_matrix is f x c matrix (f number of frequencies, c number of components, 1st SZ, rest to deproject)
 

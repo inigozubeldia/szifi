@@ -1114,9 +1114,9 @@ def repixelise_map(pix_in,map_in,pix_out,method="cubic"):
 
 def get_map_convolved_fft(map_fft_original,pix,freqs,beam_type,mask,lrange,exp):
 
-    a_map_fft = maps.convolve_tmap_fft_experiment(pix,map_fft_original,exp,freqs=freqs,beam_type=beam_type)
-    a_map_fft = maps.get_fft_f(maps.get_ifft_f(a_map_fft,pix)*mask,pix)
-    a_map_fft = maps.filter_fft_f(a_map_fft,pix,lrange)
+    a_map_fft = convolve_tmap_fft_experiment(pix,map_fft_original,exp,freqs=freqs,beam_type=beam_type)
+    a_map_fft = get_fft_f(get_ifft_f(a_map_fft,pix)*mask,pix)
+    a_map_fft = filter_fft_f(a_map_fft,pix,lrange)
 
     return a_map_fft
 

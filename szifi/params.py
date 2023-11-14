@@ -2,7 +2,7 @@ import numpy as np
 
 params_szifi_default = {
 
-"theta_500_vec_arcmin": np.exp(np.linspace(np.log(0.5),np.log(15.),15)), #cluster search angular scales
+"theta_500_vec_arcmin": np.exp(np.linspace(np.log(0.5),np.log(15.),2)), #cluster search angular scales
 "q_th": 4., #detection threshold
 "q_th_noise": 4., #detection threshold to remove detections for iterative covariance estimation
 "mask_radius": 3., #masking radius for iterative covariance estimation in units of theta_500 for each detection
@@ -28,7 +28,7 @@ params_szifi_default = {
 "theta_500_input": None,
 "norm_type": "centre",
 "n_clusters_true": 1000, #maximum number of true clusters for which to extract signal
-"true_cat_select":"q",
+"min_ftile":0.3, #minimum unmasked fraction of tile for it to be considered for cluster finding
 
 "theta_find": "input",
 "detection_method": "maxima",
@@ -36,9 +36,8 @@ params_szifi_default = {
 "path": "/Users/inigozubeldia/Desktop/szifi/",
 
 "mmf_type": "standard", #"standard" or "spectrally_constrained"
-"cmmf_type": "one_dep", #"one_dep" or "general"
-"sed_b": None, #SED to be deprojected, if only one SED is deprojected. Otherwise, use "a_matrix"
-"a_matrix": None, #SED matrix
+"cmmf_type": "one_dep", #"one_dep" or "general". If only one SED is deprojected, use "one_dep" (faster); they are mathematically the same
+"a_matrix": None, #n_freq x n_component SED matrix. The first column should be the tSZ SED, the second column the deprojection SED
 "comp_to_calculate": [0], #Component in the mixing matrix to extract; if the tSZ SED is in the first column, this will be [0]
 
 "save_snr_maps": False,
@@ -51,8 +50,15 @@ params_szifi_default = {
 }
 
 params_model_default = {
+#Pressure profile parameters
 "profile_type":"arnaud", #"arnaud" or "point"
 "concentration":1.177,
+
+#CIB parameters
+"alpha_cib":0.2, #Websky value
+"T0_cib":20.7, #Websky value
+"beta_cib":1.6, #Websky value
+"gamma_cib":1.8, #Websky value
 }
 
 

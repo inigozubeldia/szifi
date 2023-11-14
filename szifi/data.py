@@ -73,7 +73,7 @@ class input_data:
                 mask_select_no_tile = get_buffered_mask(self.pix,mask_peak_finding_no_tile,buffer_arcmin,type="fft")
                 mask_peak_finding = mask_peak_finding_no_tile*mask_tile
                 mask_select = mask_select_no_tile*mask_tile
-                mask_select = get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile)
+                mask_select = get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile,criterion=params_szifi["min_ftile"])
 
                 self.data["mask_point"][field_id] = mask_point
                 self.data["mask_select"][field_id] = mask_select

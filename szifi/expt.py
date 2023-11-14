@@ -27,7 +27,7 @@ class experiment:
 
             self.tsz_sed = np.array([1./(-0.24815),1./(-0.35923),1./5.152,1./0.161098,1./0.06918,1./0.038])*1e6 #tSZ signature in muK
 
-            self.MJysr_to_muK_websky = np.array([4.1877e3,2.6320e3,2.0676e3,3.3710e3,1.7508e4,6.9653e5]) #from Websky paper
+            self.MJysr_to_muK = np.array([4.1877e3,2.6320e3,2.0676e3,3.3710e3,1.7508e4,6.9653e5]) #from Websky paper
 
         if self.experiment_name == "Planck_simple":
 
