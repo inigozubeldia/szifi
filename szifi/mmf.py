@@ -45,11 +45,36 @@ class cluster_finder:
             a_matrix[:,0] = self.exp.tsz_sed
             self.params_szifi["a_matrix"] = a_matrix
 
+        if self.params_szifi["deproject_cib"] is not None:
+
+            get_a_matrix_cib(self.params_szifi,self.params_model,self.data_file)
+
     def find_clusters(self):
 
-        self.results_dict = {}
+        #Print some information
+
+        if self.params_szifi["mmf_type"] == "standard":
+
+            type_name = "standard"
+
+        elif self.params_szifi["mmf_type"] == "spectrally_constrained":
+
+            n_dep = self.params_szifi["a_matrix"].shape[1]-1
+
+            type_name = "spectrally constrained, " + str(n_dep) + " components deprojected"
+
+        print("SZiFi")
+        print("")
+        print("")
+        print("MMF type:",type_name)
+        print("Iterative:",self.params_szifi["iterative"])
+        print("Extraction mode:",self.params_szifi["extraction_mode"])
+        print("Experiment:",self.exp.experiment_name)
+        print("Frequency channels:",self.params_szifi["freqs"])
 
         #Iterate over fields
+
+        self.results_dict = {}
 
         for field_id in self.data_file["params_data"]["field_ids"]:
 
@@ -875,3 +900,43 @@ class scmmf_precomputation:
         elif mmf_type == "standard":
 
             r = 1.
+
+def get_a_matrix_cib(params_szifi,params_model,data_file):
+
+    cib = cib_model(params_model=params_model)
+    cib_sed = cib.get_sed_muK_experiment(experiment=data_file["experiment"])
+    cib.get_sed_first_moments_experiment(experiment=data_file["experiment"])
+
+    freqs = params_szifi["freqs"]
+
+    a_matrix = np.zeros((len(freqs),len(params_szifi["deproject_cib"])))
+
+    if params_szifi["deproject_cib"] == ["cib"]:
+
+        a_matrix = np.zeros((len(freqs),2))
+        a_matrix[:,0] = data_file["experiment"].tsz_sed[freqs]
+        a_matrix[:,1] = cib_sed[freqs]
+
+    elif params_szifi["deproject_cib"] == ["cib","betaT"]:
+
+        a_matrix = np.zeros((len(freqs),3))
+        a_matrix[:,0] = data_file["experiment"].tsz_sed[freqs]
+        a_matrix[:,1] = cib_sed[freqs]
+        a_matrix[:,2] = cib.moments["betaT"]
+
+    elif params_szifi["deproject_cib"] == ["cib","beta"]:
+
+        a_matrix = np.zeros((len(freqs),3))
+        a_matrix[:,0] = data_file["experiment"].tsz_sed[freqs]
+        a_matrix[:,1] = cib_sed[freqs]
+        a_matrix[:,2] = cib.moments["beta"]
+
+    elif params_szifi["deproject_cib"] == ["cib","betaT","beta"]:
+
+        a_matrix = np.zeros((len(freqs),3))
+        a_matrix[:,0] = data_file["experiment"].tsz_sed[freqs]
+        a_matrix[:,1] = cib_sed[freqs]
+        a_matrix[:,2] = cib.moments["betaT"]
+        a_matrix[:,3] = cib.moments["beta"]
+
+    params_szifi["a_matrix"] = a_matrix

@@ -679,7 +679,6 @@ def get_fsky_criterion_mask(pix,mask_select,nside_tile,criterion=0.3):
     area_tile = hp.pixelfunc.nside2pixarea(nside_tile)
     area_select = np.sum(mask_select)*pix.dx*pix.dy
     frac = area_select/area_tile
-    print("Tile frac",frac)
 
     if frac < criterion:
 

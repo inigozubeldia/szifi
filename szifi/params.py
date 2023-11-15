@@ -39,6 +39,7 @@ params_szifi_default = {
 "cmmf_type": "one_dep", #"one_dep" or "general". If only one SED is deprojected, use "one_dep" (faster); they are mathematically the same
 "a_matrix": None, #n_freq x n_component SED matrix. The first column should be the tSZ SED, the second column the deprojection SED
 "comp_to_calculate": [0], #Component in the mixing matrix to extract; if the tSZ SED is in the first column, this will be [0]
+"deproject_cib": None, #None, or ["cib"], ["cib","beta"], ["cib","betaT"], or ["cib","beta","betaT"; it superseeds the "a_matrix" given by hand
 
 "save_snr_maps": False,
 "snr_maps_name": None,
@@ -59,6 +60,7 @@ params_model_default = {
 "T0_cib":20.7, #Websky value
 "beta_cib":1.6, #Websky value
 "gamma_cib":1.8, #Websky value
+"z_eff_cib":0.2, #Used for Planck analysis
 }
 
 

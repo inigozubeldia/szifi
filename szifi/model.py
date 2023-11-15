@@ -541,6 +541,7 @@ class cib_model: #Modified blackbody, model used in Websky.
         self.beta = params_model["beta_cib"]
         self.gamma = params_model["gamma_cib"]
         self.T0 = params_model["T0_cib"]
+        self.z = params_model["z_eff_cib"]
 
         self.nu0 = 10000.
         self.nu_pivot = 1#3e9
@@ -549,53 +550,46 @@ class cib_model: #Modified blackbody, model used in Websky.
 
     #Input nu is experiment nu (i.e. at z = 0).
 
-    def get_sed_SI(self,nu=None,z=None):
+    def get_sed_SI(self,nu=None):
 
-        print("nu",nu)
-        print(self.beta,self.T0,self.alpha,self.nu_pivot)
-
-        nup = nu*(1.+z)
-        sed = (nup/self.nu_pivot)**self.beta*planckian(nup,self.T0*(1+z)**self.alpha)
-        print("Theta_0",sed)
+        nup = nu*(1.+self.z)
+        sed = (nup/self.nu_pivot)**self.beta*planckian(nup,self.T0*(1+self.z)**self.alpha)
 
         return sed
 
     #Input nu is experiment nu (i.e. at z = 0).
 
-    def get_sed_muK(self,nu=None,z=None):
+    def get_sed_muK(self,nu=None):
 
-        sed = self.get_sed_SI(nu=nu,z=z)
+        sed = self.get_sed_SI(nu=nu)
 
         return sed/dBnudT(nu)
 
-    def get_sed_muK_experiment(self,experiment=None,z=None):
+    def get_sed_muK_experiment(self,experiment=None):
 
-        sed = self.get_sed_SI(nu=experiment.nu_eff,z=z)
-
-
+        sed = self.get_sed_SI(nu=experiment.nu_eff)
         sed = sed*experiment.MJysr_to_muK
-
 
         return sed
 
-    def get_sed_first_moments_SI(self,nu=None,z=None,moment_parameters=["betaT","beta"]):
+    def get_sed_first_moments_SI(self,nu=None,moment_parameters=["betaT","beta"]):
 
         const = constants()
-        nup = nu*(1.+z)
+        nup = nu*(1.+self.z)
 
         if "beta" in moment_parameters:
 
-            self.moments["beta"] = self.get_sed_SI(nu=nu,z=z)*np.log(nup/self.nu_pivot)
+            self.moments["beta"] = self.get_sed_SI(nu=nu)*np.log(nup/self.nu_pivot)
 
         if "betaT" in moment_parameters:
 
-            exponential = np.exp(const.h*nup/(const.k_B*self.T0*(1+z)**self.alpha))
+            exponential = np.exp(const.h*nup/(const.k_B*self.T0*(1+self.z)**self.alpha))
             self.moments["betaT"] = -2.*const.h*nup**(3.+self.beta)/(const.c_light**2*(exponential-1.)**2)*exponential*const.h*nup/const.k_B
 
 
-    def get_sed_first_moments_experiment(self,experiment,z=None,moment_parameters=["betaT","beta"]):
+    def get_sed_first_moments_experiment(self,experiment,moment_parameters=["betaT","beta"]):
 
-        self.get_sed_first_moments_SI(nu=experiment.nu_eff,z=z,moment_parameters=moment_parameters)
+        self.get_sed_first_moments_SI(nu=experiment.nu_eff,moment_parameters=moment_parameters)
 
         for moment_parameter in moment_parameters:
 
@@ -611,7 +605,7 @@ def planckian(nu,T):
 
     return planck
 
-#nu in Hz, T_CMB in K. To go from Jy/sr to T_CMB, dvide by output of this function
+#nu in Hz, T_CMB in K. To convert from Jy/sr to T_CMB, dvide by output of this function
 
 def dBnudT(nu,T_CMB=constants().T_CMB):
 
