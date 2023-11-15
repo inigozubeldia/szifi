@@ -16,7 +16,7 @@ class input_data:
         self.data["nx"] = {} #Field number of pixels along each dimension
         self.data["dx_arcmin"] = {} #Field pixel size in arcmin
         self.data["t_obs"] = {} #Temperature maps in muK, nx x nx x n_freq
-        self.data["t_noi"] = {} #Temperature maps to be used for noise estimation in muK, nx x nx x n_freq (generally same as "t_obs")
+        self.data["t_noi"] = {} #Temperature maps to be used for noise estimation in muK, nx x nx x n_freq (in genereal, same as "t_obs", unless the maps minus the tSZ signal is known)
 
         self.data["mask_map"] = {}
         self.data["mask_point"] = {}
@@ -29,7 +29,7 @@ class input_data:
 
         self.data["coupling_matrix_name"] = {}
 
-        if params_data_default["data_set"] == "Planck_real":
+        if params_data["data_set"] == "Planck_real":
 
             self.nside_tile = 8
             self.n_tile = hp.nside2npix(self.nside_tile)
@@ -101,7 +101,7 @@ class input_data:
             self.data["experiment"] = experiment(experiment_name="Planck_real",params_szifi=params_szifi)
 
 
-        elif params_data_default["data_set"] == "Planck_websky":
+        elif params_data["data_set"] == "Planck_websky":
 
             for field_id in field_ids:
 
@@ -127,7 +127,7 @@ class catalogue_data:
 
     def __init__(self,name,type=None,params_szifi=params_szifi_default):
 
-        path = params_szifi_default["path"] + "data/"
+        path = params_szifi["path"] + "data/"
 
         if name == "Planck_SZ":
 
