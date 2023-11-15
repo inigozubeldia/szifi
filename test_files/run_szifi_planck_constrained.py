@@ -27,11 +27,11 @@ freqs = params_szifi["freqs"]
 params_model["alpha_cib"] = 0.36 #also from Planck paper
 params_model["T0_cib"] = 20.7 # 24.4, this from Planck paper (https://arxiv.org/pdf/1309.0382.pdf), instead of 1.6
 params_model["beta_cib"] = 1.6 # 1.75, this same
+params_model["z_eff_cib"] = 0.2
 
 cib_model = szifi.cib_model(params_model=params_model)
-z_eff_cib = 0.2
-cib_sed = cib_model.get_sed_muK_experiment(experiment=data.data["experiment"],z=z_eff_cib)
-cib_model.get_sed_first_moments_experiment(experiment=data.data["experiment"],z=z_eff_cib)
+cib_sed = cib_model.get_sed_muK_experiment(experiment=data.data["experiment"])
+cib_model.get_sed_first_moments_experiment(experiment=data.data["experiment"])
 
 #Deprojecting CIB SED
 
@@ -50,6 +50,10 @@ a_matrix[:,2] = cib_model.moments["betaT"]
 #Set mixing matrix
 
 params_szifi["a_matrix"] = a_matrix
+
+#Alternatively, the CIB and its moments can be deprojected without the need to explicitly set the mixing matrix "a_matrix":
+
+params_szifi["deproject_cib"] = ["cib","betaT"] #Deprojecting the CIB SED and its first-order moment with respect to "betaT"
 
 #Find clusters
 
