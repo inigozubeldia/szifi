@@ -14,6 +14,8 @@ params_model = szifi.params_model_default
 
 params_szifi["mmf_type"] = "spectrally_constrained"
 params_szifi["cmmf_type"] = "general"
+params_szifi["cmmf_type"] = "general"
+params_szifi["integrate_bandpass"] = True
 
 #Input data
 
@@ -29,9 +31,13 @@ params_model["T0_cib"] = 20.7 # 24.4, this from Planck paper (https://arxiv.org/
 params_model["beta_cib"] = 1.6 # 1.75, this same
 params_model["z_eff_cib"] = 0.2
 
+#Compute CIB SED and its moments
+
 cib_model = szifi.cib_model(params_model=params_model)
-cib_sed = cib_model.get_sed_muK_experiment(experiment=data.data["experiment"])
-cib_model.get_sed_first_moments_experiment(experiment=data.data["experiment"])
+cib_sed = cib_model.get_sed_muK_experiment(experiment=data.data["experiment"],
+bandpass=params_szifi["integrate_bandpass"])
+cib_model.get_sed_first_moments_experiment(experiment=data.data["experiment"],
+bandpass=params_szifi["integrate_bandpass"],moment_parameters=["beta","betaT"])
 
 #Deprojecting CIB SED
 
@@ -53,7 +59,7 @@ params_szifi["a_matrix"] = a_matrix
 
 #Alternatively, the CIB and its moments can be deprojected without the need to explicitly set the mixing matrix "a_matrix":
 
-params_szifi["deproject_cib"] = ["cib","betaT"] #Deprojecting the CIB SED and its first-order moment with respect to "betaT"
+#params_szifi["deproject_cib"] = ["cib","betaT"] #Deprojecting the CIB SED and its first-order moment with respect to "betaT"
 
 #Find clusters
 
