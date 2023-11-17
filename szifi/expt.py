@@ -2,6 +2,8 @@ import numpy as np
 import healpy as hp
 from astropy.io import fits
 from .params import *
+#from .model import *
+from .maps import *
 
 class experiment:
 
@@ -9,6 +11,7 @@ class experiment:
 
         self.experiment_name = experiment_name
         self.params_szifi = params_szifi
+        self.transmission_list = None
 
         if self.experiment_name == "Planck_real":
 
@@ -27,7 +30,7 @@ class experiment:
 
             self.tsz_sed = np.array([1./(-0.24815),1./(-0.35923),1./5.152,1./0.161098,1./0.06918,1./0.038])*1e6 #tSZ signature in muK
 
-            self.MJysr_to_muK = np.array([4.1877e3,2.6320e3,2.0676e3,3.3710e3,1.7508e4,6.9653e5]) #from Websky paper
+            self.bandpass_file = fits.open(params_szifi["path"] + "data/HFI_RIMO_Beams-075pc_R2.00.fits")
 
         if self.experiment_name == "Planck_simple":
 
@@ -89,6 +92,35 @@ class experiment:
         ell = np.arange(0,len(ptf))
 
         return ell,ptf
+
+    def get_band_transmission(self):
+
+        if self.experiment_name == "Planck_real":
+
+            bandpass_file = fits.open(self.params_szifi["path"] + "data/HFI_RIMO_R3.00.fits")
+            channel_indices = [3,4,5,6,7,8]
+
+            self.transmission_list = []
+            self.nu_transmission_list = [] #in Hz
+
+            for i in range(0,len(channel_indices)):
+
+                data_vector = bandpass_file[channel_indices[i]].data
+
+                len_data = len(data_vector)
+                wavelength = np.zeros(len_data)
+                transmission = np.zeros(len_data)
+
+                for j in range(0,len_data):
+
+                    wavelength[j] = data_vector[j][0]
+                    transmission[j] = data_vector[j][1]
+
+                c_light = 299792458.
+                nu = wavelength*1e2*c_light
+
+                self.transmission_list.append(transmission[1:])
+                self.nu_transmission_list.append(nu[1:])
 
 class websky_conversions:
 

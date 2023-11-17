@@ -6,10 +6,10 @@ import time
 from .maps import *
 from .spec import *
 from .cat import *
+from .expt import *
 from .model import *
 from .sphere import *
 from .data import *
-from .expt import *
 from .data import *
 from .utils import *
 import warnings
@@ -904,8 +904,9 @@ class scmmf_precomputation:
 def get_a_matrix_cib(params_szifi,params_model,data_file):
 
     cib = cib_model(params_model=params_model)
-    cib_sed = cib.get_sed_muK_experiment(experiment=data_file["experiment"])
-    cib.get_sed_first_moments_experiment(experiment=data_file["experiment"])
+    cib_sed = cib.get_sed_muK_experiment(experiment=data_file["experiment"],bandpass=params_szifi["integrate_bandpass"])
+    cib.get_sed_first_moments_experiment(experiment=data_file["experiment"],
+    bandpass=params_szifi["integrate_bandpass"],moment_parameters=params_szifi["deproject_cib"])
 
     freqs = params_szifi["freqs"]
 

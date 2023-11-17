@@ -40,6 +40,7 @@ params_szifi_default = {
 "a_matrix": None, #n_freq x n_component SED matrix. The first column should be the tSZ SED, the second column the deprojection SED
 "comp_to_calculate": [0], #Component in the mixing matrix to extract; if the tSZ SED is in the first column, this will be [0]
 "deproject_cib": None, #None, or ["cib"], ["cib","beta"], ["cib","betaT"], or ["cib","beta","betaT"; it superseeds the "a_matrix" given by hand
+"integrate_bandpass":True,
 
 "save_snr_maps": False,
 "snr_maps_name": None,
