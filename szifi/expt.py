@@ -2,8 +2,8 @@ import numpy as np
 import healpy as hp
 from astropy.io import fits
 from .params import *
-#from .model import *
 from .maps import *
+from .sed import *
 
 class experiment:
 
@@ -28,8 +28,10 @@ class experiment:
 
                 self.beams.append(beams_file[indices_beams[i]].data[0][0])
 
-            self.tsz_sed = np.array([1./(-0.24815),1./(-0.35923),1./5.152,1./0.161098,1./0.06918,1./0.038])*1e6 #tSZ signature in muK
+            self.tsz_sed_paper = np.array([1./(-0.24815),1./(-0.35923),1./5.152,1./0.161098,1./0.06918,1./0.038])*1e6 #tSZ signature in muK
 
+            tsz_sed_model = tsz_model()
+            self.tsz_sed = tsz_sed_model.get_sed_exp_bandpass(self)
             self.bandpass_file = fits.open(params_szifi["path"] + "data/HFI_RIMO_Beams-075pc_R2.00.fits")
 
         if self.experiment_name == "Planck_simple":
