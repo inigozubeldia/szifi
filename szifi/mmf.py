@@ -61,7 +61,7 @@ class cluster_finder:
 
             n_dep = self.params_szifi["a_matrix"].shape[1]-1
 
-            type_name = "spectrally constrained, " + str(n_dep) + " components deprojected"
+            type_name = "spectrally constrained, " + str(n_dep) + " component(s) deprojected"
 
         print("SZiFi")
         print("")
@@ -923,21 +923,21 @@ def get_a_matrix_cib(params_szifi,params_model,data_file):
         a_matrix = np.zeros((len(freqs),3))
         a_matrix[:,0] = data_file["experiment"].tsz_sed[freqs]
         a_matrix[:,1] = cib_sed[freqs]
-        a_matrix[:,2] = cib.moments["betaT"]
+        a_matrix[:,2] = cib.moments["betaT"][freqs]
 
     elif params_szifi["deproject_cib"] == ["cib","beta"]:
 
         a_matrix = np.zeros((len(freqs),3))
         a_matrix[:,0] = data_file["experiment"].tsz_sed[freqs]
         a_matrix[:,1] = cib_sed[freqs]
-        a_matrix[:,2] = cib.moments["beta"]
+        a_matrix[:,2] = cib.moments["beta"][freqs]
 
     elif params_szifi["deproject_cib"] == ["cib","betaT","beta"]:
 
         a_matrix = np.zeros((len(freqs),3))
         a_matrix[:,0] = data_file["experiment"].tsz_sed[freqs]
         a_matrix[:,1] = cib_sed[freqs]
-        a_matrix[:,2] = cib.moments["betaT"]
-        a_matrix[:,3] = cib.moments["beta"]
+        a_matrix[:,2] = cib.moments["betaT"][freqs]
+        a_matrix[:,3] = cib.moments["beta"][freqs]
 
     params_szifi["a_matrix"] = a_matrix

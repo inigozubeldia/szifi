@@ -7,7 +7,7 @@ class input_data:
 
     def __init__(self,params_szifi=params_szifi_default,params_data=params_data_default):
 
-        path = params_szifi["path"]
+        path = params_szifi["path_data"]
         field_ids = params_data["field_ids"]
 
         self.data = {}
@@ -52,7 +52,7 @@ class input_data:
 
                 #Fields
 
-                [tmap] = np.load(path + "data/planck_field_" + str(field_id) + "_tmap.npy")
+                [tmap] = np.load(path + "planck_maps/planck_field_" + str(field_id) + "_tmap.npy")
                 tmap[:,:,4] = tmap[:,:,4]/58.04
                 tmap[:,:,5] = tmap[:,:,5]/2.27
                 tmap = tmap*1e6
@@ -64,7 +64,7 @@ class input_data:
 
                 buffer_arcmin = 10. #usually around twice the beam
 
-                [mask_galaxy,mask_point,mask_tile] = np.load(path + "data/planck_field_" + str(field_id) + "_mask.npy")
+                [mask_galaxy,mask_point,mask_tile] = np.load(path + "planck_maps/planck_field_" + str(field_id) + "_mask.npy")
 
                 mask_ps = get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
                 mask_ps = get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
@@ -88,11 +88,11 @@ class input_data:
                 if np.array_equal(mask_ps,get_apodised_mask(self.pix,np.ones((self.nx,self.nx)),
                 apotype="Smooth",aposcale=0.2)):
 
-                     cm_name = path + "data/apod_smooth_1024.fits"
+                     cm_name = path + "coupling_matrices_planck/apod_smooth_1024.fits"
 
                 else:
 
-                    cm_name = path + "data/coupling_matrices_planck/apod_smooth_" + str(field_id) + ".fits"
+                    cm_name = path + "coupling_matrices_planck/apod_smooth_" + str(field_id) + ".fits"
 
                 self.data["coupling_matrix_name"][field_id] = cm_name
 
