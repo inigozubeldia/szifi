@@ -1,11 +1,13 @@
 import numpy as np
 import healpy as hp
-from .params import *
-from .maps import *
+from szifi import params, maps, expt, cat
+from astropy.io import fits
+from astropy.coordinates import SkyCoord
+from astropy import units as u
 
 class input_data:
 
-    def __init__(self,params_szifi=params_szifi_default,params_data=params_data_default):
+    def __init__(self,params_szifi=params.params_szifi_default,params_data=params.params_data_default):
 
         path = params_szifi["path_data"]
         field_ids = params_data["field_ids"]
@@ -38,7 +40,7 @@ class input_data:
             self.l = 14.8  #field size in deg
             self.dx_arcmin = self.l/self.nx*60. #pixel size in arcmin
             self.dx = self.dx_arcmin/180./60.*np.pi
-            self.pix = pixel(self.nx,self.dx)
+            self.pix = maps.pixel(self.nx,self.dx)
 
             self.data["nside_tile"] = self.nside_tile
 
@@ -66,14 +68,14 @@ class input_data:
 
                 [mask_galaxy,mask_point,mask_tile] = np.load(path + "planck_maps/planck_field_" + str(field_id) + "_mask.npy")
 
-                mask_ps = get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
-                mask_ps = get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
+                mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
+                mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
 
                 mask_peak_finding_no_tile = mask_galaxy*mask_point
-                mask_select_no_tile = get_buffered_mask(self.pix,mask_peak_finding_no_tile,buffer_arcmin,type="fft")
+                mask_select_no_tile = maps.get_buffered_mask(self.pix,mask_peak_finding_no_tile,buffer_arcmin,type="fft")
                 mask_peak_finding = mask_peak_finding_no_tile*mask_tile
                 mask_select = mask_select_no_tile*mask_tile
-                mask_select = get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile,criterion=params_szifi["min_ftile"])
+                mask_select = maps.get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile,criterion=params_szifi["min_ftile"])
 
                 self.data["mask_point"][field_id] = mask_point
                 self.data["mask_select"][field_id] = mask_select
@@ -85,7 +87,7 @@ class input_data:
 
                 #Coupling matrix
 
-                if np.array_equal(mask_ps,get_apodised_mask(self.pix,np.ones((self.nx,self.nx)),
+                if np.array_equal(mask_ps, maps.get_apodised_mask(self.pix,np.ones((self.nx,self.nx)),
                 apotype="Smooth",aposcale=0.2)):
 
                      cm_name = path + "coupling_matrices_planck/apod_smooth_1024.fits"
@@ -98,7 +100,7 @@ class input_data:
 
             #Experiment specifications
 
-            self.data["experiment"] = experiment(experiment_name="Planck_real",params_szifi=params_szifi)
+            self.data["experiment"] = expt.experiment(experiment_name="Planck_real",params_szifi=params_szifi)
 
 
         elif params_data["data_set"] == "Planck_websky":
@@ -125,7 +127,7 @@ class input_data:
 
 class catalogue_data:
 
-    def __init__(self,name,type=None,params_szifi=params_szifi_default):
+    def __init__(self,name,type=None,params_szifi=params.params_szifi_default):
 
         path = params_szifi["path"] + "data/"
 
@@ -154,7 +156,7 @@ class catalogue_data:
                         indices_union.append(data_mmf3["INDEX"][i]-1)
                         indices_mmf3.append(i)
 
-            self.catalogue = cluster_catalogue()
+            self.catalogue = cat.cluster_catalogue()
 
             self.catalogue.catalogue["q_opt"] = data_mmf3["SNR"][indices_mmf3]
             self.catalogue.catalogue["lon"] = data_union["GLON"][indices_union]
@@ -167,7 +169,7 @@ class catalogue_data:
             cat_fits = fits.open(path + "HFI_PCCS_GCC_R2.02.fits")
             data = cat_fits[1].data
 
-            self.catalogue = cluster_catalogue()
+            self.catalogue = cat.cluster_catalogue()
 
             self.catalogue.catalogue["lon"] = data["GLON"]
             self.catalogue.catalogue["lat"] = data["GLAT"]
@@ -189,7 +191,7 @@ class catalogue_data:
                 lon = np.append(lon,data["GLON"])
                 lat = np.append(lat,data["GLAT"])
 
-            self.catalogue = cluster_catalogue()
+            self.catalogue = cat.cluster_catalogue()
 
             self.catalogue.catalogue["lon"] = lon
             self.catalogue.catalogue["lat"] = lat
@@ -219,7 +221,7 @@ class catalogue_data:
                 self.lon[i] = coords[i].l.value
                 self.lat[i] = coords[i].b.value
 
-            self.catalogue = cluster_catalogue()
+            self.catalogue = cat.cluster_catalogue()
 
             self.catalogue.catalogue["lon"] = self.lon
             self.catalogue.catalogue["lat"] = self.lat
@@ -269,7 +271,7 @@ class catalogue_data:
                 self.lon[i] = coords[i].l.value
                 self.lat[i] = coords[i].b.value
 
-            self.catalogue = cluster_catalogue()
+            self.catalogue = cat.cluster_catalogue()
 
             self.catalogue.catalogue["lon"] = self.lon
             self.catalogue.catalogue["lat"] = self.lat
@@ -300,7 +302,7 @@ class catalogue_data:
                 self.lon[i] = coords[i].l.value
                 self.lat[i] = coords[i].b.value
 
-            self.catalogue = cluster_catalogue()
+            self.catalogue = cat.cluster_catalogue()
 
             self.catalogue.catalogue["lon"] = self.lon
             self.catalogue.catalogue["lat"] = self.lat

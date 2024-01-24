@@ -1,16 +1,12 @@
 import numpy as np
-import pylab as pl
 import healpy as hp
 import scipy.integrate as integrate
 import scipy.special as sp
 from random import randrange
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import pairwise_distances
-from astropy.io import fits
 import copy
-from .model import *
-from .maps import *
-from .sphere import *
+from szifi import maps, sphere
 
 #standard keys used throughout:
 
@@ -63,13 +59,13 @@ class cluster_catalogue:
 
     def get_lonlat(self,n_side,i,pix):
 
-        lon,lat = get_lonlat(i,self.catalogue["theta_x"]-pix.nx*pix.dx*0.5,self.catalogue["theta_y"]-pix.nx*pix.dx*0.5,n_side)
+        lon,lat = sphere.get_lonlat(i,self.catalogue["theta_x"]-pix.nx*pix.dx*0.5,self.catalogue["theta_y"]-pix.nx*pix.dx*0.5,n_side)
         self.catalogue["lon"] = lon
         self.catalogue["lat"] = lat
 
     def select_tile(self,i,pix,type="field",nside=8): #it works
 
-        theta_x,theta_y = get_xy(i,self.catalogue["lon"],self.catalogue["lat"],nside)
+        theta_x,theta_y = sphere.get_xy(i,self.catalogue["lon"],self.catalogue["lat"],nside)
 
         if type == "field":
 
@@ -136,7 +132,7 @@ def merge_detections(catalogue,radius_arcmin=10.,return_merge_flag=False,mode="c
             catalogue_compare = catalogue_compare_new
 
             n_clusters = len(catalogue_compare.catalogue["q_opt"])
-            dist = get_angdist(catalogue_compare.catalogue["lon"][0]*np.ones(n_clusters),catalogue_compare.catalogue["lon"],
+            dist = sphere.get_angdist(catalogue_compare.catalogue["lon"][0]*np.ones(n_clusters),catalogue_compare.catalogue["lon"],
             catalogue_compare.catalogue["lat"][0]*np.ones(n_clusters),catalogue_compare.catalogue["lat"])
 
             indices = np.where(dist < radius_arcmin/180./60.*np.pi)[0]
@@ -242,7 +238,7 @@ mode="close+highest_q",sort=True,unique=False):
 
         elif lonlat == True:
 
-            dist = get_angdist(catalogue_1.catalogue["lon"][i],catalogue_2.catalogue["lon"],catalogue_1.catalogue["lat"][i],catalogue_2.catalogue["lat"])
+            dist = sphere.get_angdist(catalogue_1.catalogue["lon"][i],catalogue_2.catalogue["lon"],catalogue_1.catalogue["lat"][i],catalogue_2.catalogue["lat"])
 
         if unique == False:
 
@@ -315,7 +311,7 @@ mode="close+highest_q",sort=True,unique=False):
 
 def apply_mask_select(cat,mask_select,pix):
 
-    i,j = get_ij_from_theta(cat.catalogue["theta_x"],cat.catalogue["theta_y"],pix)
+    i,j = maps.get_ij_from_theta(cat.catalogue["theta_x"],cat.catalogue["theta_y"],pix)
     mask_values = mask_select[i,j]
     indices = np.where(mask_values != 0.)[0]
 
@@ -507,7 +503,7 @@ class catalogue_comparer:
     def get_theta_std_bin(self,q_min,q_max): #for true positives
 
         cat_true,cat_obs = self.get_true_positives(q_th_obs=q_min,q_max_obs=q_max)
-        distances = get_angdist(cat_true.catalogue["lon"],cat_obs.catalogue["lon"],cat_true.catalogue["lat"],cat_obs.catalogue["lat"])/np.pi*60.*180.
+        distances = sphere.get_angdist(cat_true.catalogue["lon"],cat_obs.catalogue["lon"],cat_true.catalogue["lat"],cat_obs.catalogue["lat"])/np.pi*60.*180.
         theta_std = np.mean(distances)
 
         return theta_std
@@ -688,7 +684,7 @@ def get_random_location_tile(mask,pix,n_points):
             ix = randrange(nx)
             jx = randrange(ny)
 
-        theta_x,theta_y = get_theta_from_ij(ix,jx,pix)
+        theta_x,theta_y = maps.get_theta_from_ij(ix,jx,pix)
         theta_x_vec[i] = theta_x
         theta_y_vec[i] = theta_y
 

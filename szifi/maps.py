@@ -1,7 +1,5 @@
 import numpy as np
-import pylab as pl
 from numba import jit
-import time
 from scipy import interpolate
 import scipy.signal as sp
 import pymaster as nmt
@@ -9,8 +7,6 @@ import scipy.signal as sg
 import healpy as hp
 import scipy
 import scipy.stats as st
-from .mmf import *
-from .expt import *
 
 #Functions for handling maps
 

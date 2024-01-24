@@ -1,17 +1,7 @@
 import numpy as np
-import pylab as pl
 import scipy.signal as sg
-import scipy.interpolate as interpolate
 import time
-from .maps import *
-from .spec import *
-from .cat import *
-from .expt import *
-from .model import *
-from .sphere import *
-from .data import *
-from .data import *
-from .utils import *
+from szifi import params, maps, model, cat, spec, utils, sed
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -19,8 +9,8 @@ warnings.filterwarnings("ignore")
 
 class cluster_finder:
 
-    def __init__(self,params_szifi=params_szifi_default,
-    params_model=params_model_default,
+    def __init__(self,params_szifi=params.params_szifi_default,
+    params_model=params.params_model_default,
     data_file=None,
     rank=0):
 
@@ -33,7 +23,7 @@ class cluster_finder:
 
         if self.params_szifi["cosmology"] == "Planck15":
 
-            self.cosmology = cosmological_model(name="Planck15").cosmology
+            self.cosmology = model.cosmological_model(name="Planck15").cosmology
 
         if self.params_szifi["detection_method"] == "DBSCAN":
 
@@ -98,7 +88,7 @@ class cluster_finder:
 
             self.dx = self.data_file["dx_arcmin"][field_id]/60./180.*np.pi
             self.nx = self.data_file["nx"][field_id]
-            self.pix = pixel(self.nx,self.dx)
+            self.pix = maps.pixel(self.nx,self.dx)
 
             if self.params_szifi["decouple_type"] == "master" and self.params_szifi["compute_coupling_matrix"] == False:
 
@@ -114,26 +104,26 @@ class cluster_finder:
 
             #Select frequency channels to use
 
-            self.t_obs = select_freqs(self.t_obs,self.params_szifi["freqs"])
-            self.t_noi = select_freqs(self.t_noi,self.params_szifi["freqs"])
+            self.t_obs = maps.select_freqs(self.t_obs,self.params_szifi["freqs"])
+            self.t_noi = maps.select_freqs(self.t_noi,self.params_szifi["freqs"])
 
             if self.params_szifi["get_q_true"] == True:
 
                 self.t_true = self.data_file["t_true"][field_id]
-                self.t_true = select_freqs(self.t_true,self.params_szifi["freqs"])
+                self.t_true = maps.select_freqs(self.t_true,self.params_szifi["freqs"])
 
             #Inpaint point sources
 
             if self.params_szifi["inpaint"] == True:
 
-                self.t_obs = diffusive_inpaint_freq(self.t_obs,self.mask_point,self.params_szifi["n_inpaint"])
+                self.t_obs = maps.diffusive_inpaint_freq(self.t_obs,self.mask_point,self.params_szifi["n_inpaint"])
 
             mask_ps_0 = self.mask_ps
             mask_point_0 = self.mask_point
 
             #Initialise results class
 
-            self.results = results_detection()
+            self.results = cat.results_detection()
             self.results.info = self.params_szifi
             self.results.theta_500_vec = self.theta_500_vec
             self.results.fsky = np.sum(self.mask_select)*self.pix.dx*self.pix.dy/(4.*np.pi)
@@ -141,13 +131,13 @@ class cluster_finder:
             #Initialise cluster masking (if iterative noise covariance estimation is required)
 
             mask_cluster = np.ones((self.pix.nx,self.pix.ny))
-            clusters_masked_old = cluster_catalogue()
+            clusters_masked_old = cat.cluster_catalogue()
 
             #Apodise (except t_noise, which is apodised in the power spectra estimation functions)
 
             if self.params_szifi["apod_type"] == "new":
 
-                mask_map_t = clone_map_freq(self.mask_map,self.t_obs.shape[2])
+                mask_map_t = maps.clone_map_freq(self.mask_map,self.t_obs.shape[2])
                 self.t_obs = self.t_obs*mask_map_t
 
                 if self.params_szifi["get_q_true"] == True:
@@ -156,13 +146,13 @@ class cluster_finder:
 
             #Filter input maps in harmonic space
 
-            self.t_obs = filter_tmap(self.t_obs,self.pix,self.params_szifi["lrange"])
-            self.t_noi = filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"])
+            self.t_obs = maps.filter_tmap(self.t_obs,self.pix,self.params_szifi["lrange"])
+            self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"])
             t_noi_original = self.t_noi
 
             if self.params_szifi["get_q_true"] == True:
 
-                self.t_true = filter_tmap(self.t_true,self.pix,self.params_szifi["lrange"])
+                self.t_true = maps.filter_tmap(self.t_true,self.pix,self.params_szifi["lrange"])
 
             #Initiate loop over iterative noise covariance estimation
 
@@ -184,22 +174,22 @@ class cluster_finder:
 
                 if self.params_szifi["inpaint"] == True:
 
-                    self.t_noi = diffusive_inpaint_freq(t_noi_original,self.mask_point,self.params_szifi["n_inpaint"])
+                    self.t_noi = maps.diffusive_inpaint_freq(t_noi_original,self.mask_point,self.params_szifi["n_inpaint"])
 
-                self.t_noi = filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"])
+                self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"])
 
                 #Estimate channel cross-spectra
 
                 if self.params_szifi["estimate_spec"] == "estimate":
 
-                    self.ps = power_spectrum(self.pix,
+                    self.ps = spec.power_spectrum(self.pix,
                     mask=self.mask_ps,
                     cm_compute=True,
                     cm_compute_scratch=self.params_szifi["compute_coupling_matrix"],
                     cm_save=self.params_szifi["save_coupling_matrix"],
                     cm_name=self.coupling_matrix_name)
 
-                    self.cspec = cross_spec(np.arange(len(self.params_szifi["freqs"])))
+                    self.cspec = spec.cross_spec(np.arange(len(self.params_szifi["freqs"])))
 
                     self.cspec.get_cross_spec(self.pix,
                     t_map=self.t_noi,
@@ -215,11 +205,11 @@ class cluster_finder:
 
                 elif self.params_szifi["estimate_spec"] == "theory":
 
-                    self.inv_cov = cross_spec(self.params_szifi["freqs"]).get_inv_cov(self.pix,theory=True,cmb=True)
+                    self.inv_cov = spec.cross_spec(self.params_szifi["freqs"]).get_inv_cov(self.pix,theory=True,cmb=True)
 
                 #Filter covariance matrix
 
-                self.inv_cov = filter_cov(self.inv_cov,self.pix,self.params_szifi["lrange"])
+                self.inv_cov = maps.filter_cov(self.inv_cov,self.pix,self.params_szifi["lrange"])
 
                 #Compute weights for constrained MMF
 
@@ -346,14 +336,14 @@ class cluster_finder:
 
                 self.results_for_masking = results_for_masking
 
-                clusters_masked_new = apply_q_cut(self.results_for_masking,self.params_szifi["q_th_noise"])
-                clusters_masked_old = apply_q_cut(clusters_masked_old,self.params_szifi["q_th_noise"])
+                clusters_masked_new = cat.apply_q_cut(self.results_for_masking,self.params_szifi["q_th_noise"])
+                clusters_masked_old = cat.apply_q_cut(clusters_masked_old,self.params_szifi["q_th_noise"])
 
                 if len(clusters_masked_new.catalogue["q_opt"]) == 0:
 
                     break
 
-                clusters_masked_old_id,clusters_masked_new_id = identify_clusters(clusters_masked_old,clusters_masked_new)
+                clusters_masked_old_id,clusters_masked_new_id = cat.identify_clusters(clusters_masked_old,clusters_masked_new)
 
                 if np.all(clusters_masked_old_id.catalogue["q_opt"]) != -1 and i > 0:
 
@@ -382,11 +372,11 @@ def get_cluster_mask(pix,catalogue,q_th_noise,mask_radius):
 
         if catalogue.catalogue["q_opt"][j] > q_th_noise:
 
-            x_est,y_est = get_theta_misc([catalogue.catalogue["theta_x"][j],catalogue.catalogue["theta_y"][j]],pix)
+            x_est,y_est = maps.get_theta_misc([catalogue.catalogue["theta_x"][j],catalogue.catalogue["theta_y"][j]],pix)
             source_coords = np.zeros((1,2))
             source_coords[0,0] = x_est
             source_coords[0,1] = y_est
-            mask_cluster *= ps_mask(pix,1,catalogue.catalogue["theta_500"][j]*mask_radius).get_mask_map(source_coords=source_coords)
+            mask_cluster *= maps.ps_mask(pix,1,catalogue.catalogue["theta_500"][j]*mask_radius).get_mask_map(source_coords=source_coords)
 
     return mask_cluster
 
@@ -425,7 +415,7 @@ class filter_maps:
 
         if self.params["apod_type"] == "old":
 
-            mask_map_t = clone_map_freq(self.mask_map,t_obs.shape[2])
+            mask_map_t = maps.clone_map_freq(self.mask_map,t_obs.shape[2])
             t_obs = t_obs*mask_map_t
 
         n_theta = len(self.theta_500_vec)
@@ -450,15 +440,15 @@ class filter_maps:
 
                 if self.params_model["profile_type"] == "point":
 
-                    ps = point_source(self.exp,beam_type=self.params["beam"])
+                    ps = model.point_source(self.exp,beam_type=self.params["beam"])
                     t_tem = ps.get_t_map_convolved(self.pix)
                     tem_nc = None
 
                 elif self.params_model["profile_type"] == "arnaud":
 
                     z = 0.2
-                    M_500 = get_m_500(self.theta_500_vec[j],z,self.cosmology)
-                    nfw = gnfw(M_500,z,self.cosmology,
+                    M_500 = model.get_m_500(self.theta_500_vec[j],z,self.cosmology)
+                    nfw = model.gnfw(M_500,z,self.cosmology,
                     type=self.params_model["profile_type"])
 
                     t_tem,t_tem_nc = nfw.get_t_map_convolved(self.pix,
@@ -471,15 +461,15 @@ class filter_maps:
 
                     t_tem = t_tem/nfw.get_y_norm(self.params["norm_type"])
 
-                    t_tem_nc = select_freqs(t_tem_nc,self.params["freqs"])
-                    tem_nc = filter_tmap(t_tem_nc,self.pix,self.params["lrange"])/nfw.get_y_norm(self.params["norm_type"])
+                    t_tem_nc = maps.select_freqs(t_tem_nc,self.params["freqs"])
+                    tem_nc = maps.filter_tmap(t_tem_nc,self.pix,self.params["lrange"])/nfw.get_y_norm(self.params["norm_type"])
 
-                t_tem = select_freqs(t_tem,self.params["freqs"])
-                tem = filter_tmap(t_tem,self.pix,self.params["lrange"])
+                t_tem = maps.select_freqs(t_tem,self.params["freqs"])
+                tem = maps.filter_tmap(t_tem,self.pix,self.params["lrange"])
 
                 if self.params["apod_type"] == "old":
 
-                    t_obs = filter_tmap(t_obs,self.pix,self.params["lrange"])
+                    t_obs = maps.filter_tmap(t_obs,self.pix,self.params["lrange"])
 
                 q_map,y_map,std = get_mmf_q_map(t_obs,tem,self.inv_cov,self.pix,mmf_type=self.params["mmf_type"],
                 cmmf_prec=self.cmmf,tem_nc=tem_nc)
@@ -498,8 +488,8 @@ class filter_maps:
         n_mask_select = len(self.mask_select_list)
         self.results_list = []
 
-        x_coord = rmap(self.pix).get_x_coord_map_wrt_origin() #vertical coordinate, in rad
-        y_coord = rmap(self.pix).get_y_coord_map_wrt_origin() #horizontal coordinate, in rad
+        x_coord = maps.rmap(self.pix).get_x_coord_map_wrt_origin() #vertical coordinate, in rad
+        y_coord = maps.rmap(self.pix).get_y_coord_map_wrt_origin() #horizontal coordinate, in rad
 
         for i in range(0,n_mask_select):
 
@@ -518,7 +508,7 @@ class filter_maps:
             theta_x = y_est + self.theta_range[0]
             theta_y = self.pix.nx*self.pix.dx - x_est + self.theta_range[2]
 
-            cat_new = cluster_catalogue()
+            cat_new = cat.cluster_catalogue()
 
             cat_new.catalogue["q_opt"] = q_opt
             cat_new.catalogue["y0"] = y0_est
@@ -527,7 +517,7 @@ class filter_maps:
             cat_new.catalogue["theta_y"] = theta_y
             cat_new.catalogue["pixel_ids"] = np.ones(len(q_opt))*self.field_id
 
-            cat_new = apply_mask_select(cat_new,self.mask_select_list[i],self.pix)
+            cat_new = cat.apply_mask_select(cat_new,self.mask_select_list[i],self.pix)
             self.results_list.append(cat_new)
 
         return 0
@@ -538,7 +528,7 @@ class filter_maps:
 
         if self.params["apod_type"] == "old":
 
-            mask_map_t = clone_map_freq(self.mask_map,t_true.shape[2])
+            mask_map_t = maps.clone_map_freq(self.mask_map,t_true.shape[2])
             t_true = t_true*mask_map_t
 
         n_clus = len(true_catalogue.catalogue["theta_x"])
@@ -555,7 +545,7 @@ class filter_maps:
         for i in range(0,n_clus):
 
             z = 0.2 #true_catalogue.z[i]
-            M_500 = get_m_500(true_catalogue.catalogue["theta_500"][i],z,self.cosmology)
+            M_500 = model.get_m_500(true_catalogue.catalogue["theta_500"][i],z,self.cosmology)
 
             q_extracted,y0_extracted,q_map = extract_at_input_value(t_true,
             self.inv_cov,
@@ -583,7 +573,7 @@ class filter_maps:
 
                 print("theta_500",true_catalogue.catalogue["theta_500"][i])
 
-        catalogue_at_true_values = cluster_catalogue()
+        catalogue_at_true_values = cat.cluster_catalogue()
 
         catalogue_at_true_values.catalogue["q_opt"] = q_opt[:,0]
         catalogue_at_true_values.catalogue["y0"] = y0_est[:,0]
@@ -609,11 +599,11 @@ def extract_at_input_value(t_true,inv_cov,pix,beam,M_500,z,cosmology,norm_type,
 theta_x,theta_y,lrange,apod_type=None,mmf_type=None,cmmf_prec=None,
 freqs=None,exp=None,comp_to_calculate=None,profile_type=None):
 
-    nfw = gnfw(M_500,z,cosmology,type=profile_type)
+    nfw = model.gnfw(M_500,z,cosmology,type=profile_type)
 
     if apod_type == "old":
 
-        t_true = filter_tmap(t_true,pix,lrange)
+        t_true = maps.filter_tmap(t_true,pix,lrange)
 
     q_opt = np.zeros(len(comp_to_calculate))
     y0_est = np.zeros(len(comp_to_calculate))
@@ -621,10 +611,10 @@ freqs=None,exp=None,comp_to_calculate=None,profile_type=None):
     tem,tem_nc = nfw.get_t_map_convolved(pix,exp,beam=beam,get_nc=True,sed=False)
     tem = tem/nfw.get_y_norm(norm_type)
     tem_nc = tem_nc/nfw.get_y_norm(norm_type)
-    tem = select_freqs(tem,freqs)
-    tem_nc = select_freqs(tem_nc,freqs)
-    tem = filter_tmap(tem,pix,lrange)
-    tem_nc = filter_tmap(tem_nc,pix,lrange)
+    tem = maps.select_freqs(tem,freqs)
+    tem_nc = maps.select_freqs(tem_nc,freqs)
+    tem = maps.filter_tmap(tem,pix,lrange)
+    tem_nc = maps.filter_tmap(tem_nc,pix,lrange)
 
     for k in range(0,len(comp_to_calculate)):
 
@@ -758,17 +748,17 @@ mmf_type="standard",cmmf_prec=None,tem_nc=None,comp=0):
     y_map = np.zeros((pix.nx,pix.ny))
     norm_map = np.zeros((pix.nx,pix.ny))
 
-    tem_fft = get_fft_f(tem,pix)
+    tem_fft = maps.get_fft_f(tem,pix)
 
     if tem_nc is not None: #Used if cmmf_type == "general"
 
-        tem_nc = get_fft_f(tem_nc,pix)
+        tem_nc = maps.get_fft_f(tem_nc,pix)
 
     filter_fft = get_tem_conv_fft(pix,tem_fft,inv_cov,mmf_type=mmf_type,cmmf_prec=cmmf_prec,
     tem_nc=tem_nc,comp=comp)
-    filter = get_ifft_f(filter_fft,pix).real
+    filter = maps.get_ifft_f(filter_fft,pix).real
 
-    tem = get_tmap_times_fvec(tem,cmmf_prec.a_matrix[:,comp]).real #new line
+    tem = maps.get_tmap_times_fvec(tem,cmmf_prec.a_matrix[:,comp]).real #new line
 
     for i in range(n_freqs):
 
@@ -791,23 +781,23 @@ tem_nc=None,comp=0):
 
     if mmf_type == "standard":
 
-        tem_fft = get_tmap_times_fvec(tem_fft,cmmf_prec.a_matrix[:,comp]) #new line
-        filter_fft = get_inv_cov_conjugate(tem_fft,inv_cov)
+        tem_fft = maps.get_tmap_times_fvec(tem_fft,cmmf_prec.a_matrix[:,comp]) #new line
+        filter_fft = utils.get_inv_cov_conjugate(tem_fft,inv_cov)
 
     elif mmf_type == "spectrally_constrained": #doesn't admit changing compoenent order
 
         if cmmf_prec.cmmf_type == "one_dep":
 
             n_freq = tem_fft.shape[2]
-            a_dot_b =  get_tmap_from_map(cmmf_prec.a_dot_b,n_freq)
-            b_dot_b = get_tmap_from_map(cmmf_prec.b_dot_b,n_freq)
+            a_dot_b =  maps.get_tmap_from_map(cmmf_prec.a_dot_b,n_freq)
+            b_dot_b = maps.get_tmap_from_map(cmmf_prec.b_dot_b,n_freq)
             b = cmmf_prec.a_matrix[:,1] #cmmf_prec.sed_b
             a = cmmf_prec.a_matrix[:,0] #cmmf_prec.sed_a
 
-            tem_fft_b = get_tmap_times_fvec(tem_fft,b)
-            tem_fft = get_tmap_times_fvec(tem_fft,a)
+            tem_fft_b = maps.get_tmap_times_fvec(tem_fft,b)
+            tem_fft = maps.get_tmap_times_fvec(tem_fft,a)
 
-            filter_fft = get_inv_cov_conjugate(tem_fft,inv_cov) - a_dot_b/b_dot_b*get_inv_cov_conjugate(tem_fft_b,inv_cov)
+            filter_fft = utils.get_inv_cov_conjugate(tem_fft,inv_cov) - a_dot_b/b_dot_b*utils.get_inv_cov_conjugate(tem_fft_b,inv_cov)
 
         elif cmmf_prec.cmmf_type == "general":
 
@@ -840,17 +830,17 @@ class scmmf_precomputation:
             self.sed_b = a_matrix[:,1][freqs]
 
             a_map_fft = np.ones((pix.nx,pix.nx,len(freqs)))
-            a_map_fft = get_tmap_times_fvec(a_map_fft,self.sed_a)
+            a_map_fft = maps.get_tmap_times_fvec(a_map_fft,self.sed_a)
 
-            a_map_fft = get_map_convolved_fft(a_map_fft,pix,freqs,beam_type,mask,lrange,exp)
+            a_map_fft = maps.get_map_convolved_fft(a_map_fft,pix,freqs,beam_type,mask,lrange,exp)
 
             b_map_fft = np.ones((pix.nx,pix.nx,len(freqs)))
-            b_map_fft = get_tmap_times_fvec(b_map_fft,self.sed_b)
+            b_map_fft = maps.get_tmap_times_fvec(b_map_fft,self.sed_b)
 
-            b_map_fft = get_map_convolved_fft(b_map_fft,pix,freqs,beam_type,mask,lrange,exp)
+            b_map_fft = maps.get_map_convolved_fft(b_map_fft,pix,freqs,beam_type,mask,lrange,exp)
 
-            self.a_dot_b = get_inv_cov_dot(np.conjugate(a_map_fft),inv_cov,b_map_fft)
-            self.b_dot_b = get_inv_cov_dot(np.conjugate(b_map_fft),inv_cov,b_map_fft)
+            self.a_dot_b = utils.get_inv_cov_dot(np.conjugate(a_map_fft),inv_cov,b_map_fft)
+            self.b_dot_b = utils.get_inv_cov_dot(np.conjugate(b_map_fft),inv_cov,b_map_fft)
 
         elif self.cmmf_type == "general" and mmf_type == "spectrally_constrained":
 
@@ -861,16 +851,16 @@ class scmmf_precomputation:
             for i in range(0,a_matrix.shape[1]):
 
                 a_matrix_fft_i = np.ones((pix.nx,pix.nx,len(freqs)))
-                a_matrix_fft_i = get_tmap_times_fvec(a_matrix_fft_i,self.a_matrix[freqs,i])
-                a_matrix_fft[:,:,:,i] = get_map_convolved_fft(a_matrix_fft_i,pix,freqs,beam_type,mask,lrange,exp)
+                a_matrix_fft_i = maps.get_tmap_times_fvec(a_matrix_fft_i,self.a_matrix[freqs,i])
+                a_matrix_fft[:,:,:,i] = maps.get_map_convolved_fft(a_matrix_fft_i,pix,freqs,beam_type,mask,lrange,exp)
                 #a_matrix_fft[:,:,:,i] = a_matrix_fft_i
 
             self.a_matrix_fft = a_matrix_fft
 
             pre = np.einsum('abcd,abde->abce',inv_cov,a_matrix_fft)
-            dot = invert_cov(np.einsum('abdc,abde->abce',a_matrix_fft,pre))
+            dot = utils.invert_cov(np.einsum('abdc,abde->abce',a_matrix_fft,pre))
             self.W = np.einsum('abcd,abed->abce',dot,pre)
-            cov = invert_cov(inv_cov)
+            cov = utils.invert_cov(inv_cov)
 
             t0 = time.time()
 
@@ -885,7 +875,7 @@ class scmmf_precomputation:
 
                 w = np.einsum('ija,ijab->ijb',e_map,self.W)
 
-                sigma_y = get_inv_cov_dot(np.conjugate(w),cov,w)
+                sigma_y = utils.get_inv_cov_dot(np.conjugate(w),cov,w)
 
                 w_norm = np.zeros(w.shape)
 
@@ -903,7 +893,7 @@ class scmmf_precomputation:
 
 def get_a_matrix_cib(params_szifi,params_model,data_file):
 
-    cib = cib_model(params_model=params_model)
+    cib = sed.cib_model(params_model=params_model)
     cib_sed = cib.get_sed_muK_experiment(experiment=data_file["experiment"],bandpass=params_szifi["integrate_bandpass"])
     cib.get_sed_first_moments_experiment(experiment=data_file["experiment"],
     bandpass=params_szifi["integrate_bandpass"],moment_parameters=params_szifi["deproject_cib"])
