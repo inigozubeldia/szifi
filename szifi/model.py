@@ -1,10 +1,7 @@
 import numpy as np
-import pylab as pl
-from scipy import integrate
+from scipy import integrate, interpolate
 import scipy.optimize as optimize
-from .maps import *
-from .expt import *
-from .sed import *
+from szifi import maps
 
 #Delta critical always
 
@@ -97,7 +94,7 @@ class gnfw:
 
     def get_y_map_convolved(self,pix,fwhm_arcmin,theta_misc=[0.,0.]):
 
-        return get_gaussian_convolution(self.get_y_map(pix,theta_misc=theta_misc),fwhm_arcmin,pix)
+        return maps.get_gaussian_convolution(self.get_y_map(pix,theta_misc=theta_misc),fwhm_arcmin,pix)
 
     def get_y_norm_convolved(self,pix,fwhm_arcmin,y_map=None,theta_misc=[0.,0.]):
 
@@ -106,8 +103,8 @@ class gnfw:
             y_map = self.get_y_map_convolved(pix,fwhm_arcmin,theta_misc)
 
         (theta_x,theta_y) = theta_misc
-        x_coord = rmap(pix).get_x_coord_map_wrt_centre(theta_x)[0,:]/self.theta_Delta
-        y_coord = rmap(pix).get_y_coord_map_wrt_centre(theta_y)[:,0]/self.theta_Delta
+        x_coord = maps.rmap(pix).get_x_coord_map_wrt_centre(theta_x)[0,:]/self.theta_Delta
+        y_coord = maps.rmap(pix).get_y_coord_map_wrt_centre(theta_y)[:,0]/self.theta_Delta
 
         return interpolate.interp2d(x_coord,y_coord,y_map)(1.,0.)
 
@@ -245,14 +242,14 @@ class gnfw:
 
         theta_range = [pix.dx/20.,self.theta_Delta*self.my_params_sz.R_truncation*10.]
 
-        rht = RadialFourierTransform()
+        rht = maps.RadialFourierTransform()
         rprofs       = to_transform(rht.r)
         lprofs       = rht.real2harm(rprofs)
         ell_vec = rht.l
         rprofs     = rht.harm2real(lprofs)
         r, rprofs    = rht.unpad(rht.r, rprofs)
 
-        theta_map = rmap(pix).get_distance_map_wrt_centre(theta_misc)
+        theta_map = maps.rmap(pix).get_distance_map_wrt_centre(theta_misc)
         p_cal_map = np.interp(theta_map,r,rprofs,right=0.)
         y_map = self.p_cal_to_y(p_cal_map)
 
@@ -262,7 +259,7 @@ class gnfw:
 
         theta_vec,t_vec_conv,t_vec = self.get_t_vec_convolved_hankel(pix,exp,beam_type=beam_type,get_nc=True,sed=sed)
 
-        theta_map = rmap(pix).get_distance_map_wrt_centre(theta_misc)
+        theta_map = maps.rmap(pix).get_distance_map_wrt_centre(theta_misc)
 
         t_map = np.zeros((pix.nx,pix.ny,exp.n_freqs))
         t_map_conv = np.zeros((pix.nx,pix.ny,exp.n_freqs))
@@ -298,7 +295,7 @@ class gnfw:
 
         theta_range = [pix.dx/10.,self.theta_Delta*self.my_params_sz.R_truncation*20.]
 
-        rht = RadialFourierTransform(rrange=theta_range)
+        rht = maps.RadialFourierTransform(rrange=theta_range)
         rprofs = to_transform(rht.r)
         lprofs = rht.real2harm(rprofs)
         ell_vec = rht.l
@@ -312,7 +309,7 @@ class gnfw:
 
             if beam_type == "gaussian":
 
-                beam_fft = get_bl(exp.FWHM[i],ell_vec)
+                beam_fft = maps.get_bl(exp.FWHM[i],ell_vec)
 
             elif beam_type == "real":
 
@@ -534,7 +531,7 @@ class point_source:
 
             if self.beam_type == "gaussian":
 
-                tem[:,:,i] = eval_beam_real_map(pix,self.experiment.FWHM[i])
+                tem[:,:,i] = maps.eval_beam_real_map(pix,self.experiment.FWHM[i])
 
             tem[:,:,i] = tem[:,:,i]/tem[pix.nx//2,pix.nx//2,i]
 

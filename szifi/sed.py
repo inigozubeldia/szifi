@@ -1,10 +1,11 @@
 import numpy as np
 from scipy import integrate
-from .model import *
+from szifi import params
+from szifi.model import constants
 
 class cib_model: #Modified blackbody, model used in Websky.
 
-    def __init__(self,params_model=params_model_default):
+    def __init__(self,params_model=params.params_model_default):
 
         self.alpha = params_model["alpha_cib"]
         self.beta = params_model["beta_cib"]

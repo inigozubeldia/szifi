@@ -1,10 +1,8 @@
 import numpy as np
-import pylab as pl
 import os
 from scipy import interpolate
 import pymaster as nmt
-from .maps import *
-from .model import *
+from szifi import maps
 
 class power_spectrum:
 
@@ -19,7 +17,7 @@ class power_spectrum:
 
             if fac == 1.: #actually 1
 
-                ell = np.sort(np.unique(rmap(pix).get_ell().flatten()))
+                ell = np.sort(np.unique(maps.rmap(pix).get_ell().flatten()))
                 l0_bins = ell - 1.
                 lf_bins = ell + 1.
 
@@ -127,10 +125,10 @@ class power_spectrum:
 
         elif implementation == "custom":
 
-            map1_fft = get_fft(map1,self.pix)
-            map2_fft = get_fft(map2,self.pix)
+            map1_fft = maps.get_fft(map1,self.pix)
+            map2_fft = maps.get_fft(map2,self.pix)
             spec_map = np.conjugate(map1_fft)*map2_fft
-            ell_map = ell_map = rmap(self.pix).get_ell()
+            ell_map = ell_map = maps.rmap(self.pix).get_ell()
             (ell_vec_eff,spec_tensor_binned,n_modes_per_bin,n_modes_per_bin_map) = get_binned_spec(spec_map,ell_map,self.l0_bins,self.lf_bins)
             self.ell_eff = ell_vec_eff
             self.n_modes_per_bin = n_modes_per_bin
@@ -260,7 +258,7 @@ class cross_spec:
             ell_vec = self.ell_vec
             spec_tensor = self.spec_tensor
 
-        ell_map = rmap(pix).get_ell()
+        ell_map = maps.rmap(pix).get_ell()
         cov_tensor = interp_cov(ell_map,ell_vec,spec_tensor,interp_type=interp_type)
 
         return cov_tensor # nx x ny x n_freq x n_freq covariance tensor
@@ -292,7 +290,7 @@ class cross_spec:
 
                 if j >= i:
 
-                    cov_tensor[:,:,i,j] = np.conjugate(get_fft(t_map[:,:,i],pix))*get_fft(t_map[:,:,j],pix)
+                    cov_tensor[:,:,i,j] = np.conjugate(maps.get_fft(t_map[:,:,i],pix))*maps.get_fft(t_map[:,:,j],pix)
 
                 else:
 
@@ -332,7 +330,7 @@ def get_camb_cltt(exp=None,freq=0,freq2=None,beams="gaussian"):
 
         if beams == "gaussian":
 
-            cl_tt *= get_bl(FWHM[freq],ell)*get_bl(FWHM[freq2],ell)
+            cl_tt *= maps.get_bl(FWHM[freq],ell)*maps.get_bl(FWHM[freq2],ell)
 
         elif beams == "real":
 
@@ -469,7 +467,7 @@ class cross_spec_theory:
 
             for i in range(0,len(self.freqs)):
 
-                self.cross_spec_tensor[:,i,i] = self.cross_spec_tensor[:,i,i] + get_nl(self.exp.noise_levels[self.freqs[i]],0.,self.ell)
+                self.cross_spec_tensor[:,i,i] = self.cross_spec_tensor[:,i,i] + maps.get_nl(self.exp.noise_levels[self.freqs[i]],0.,self.ell)
 
 class cross_spec_noise:
 
@@ -486,7 +484,7 @@ class cross_spec_noise:
 
         for i in range(0,len(self.freqs)):
 
-            self.cross_spec_tensor[:,i,i] = self.cross_spec_tensor[:,i,i] + get_nl(self.exp.noise_levels[self.freqs[i]],0.,self.ell)
+            self.cross_spec_tensor[:,i,i] = self.cross_spec_tensor[:,i,i] + maps.get_nl(self.exp.noise_levels[self.freqs[i]],0.,self.ell)
 
 
 def get_beam_tensor(ell,exp,freqs,beam_type="gaussian"):
@@ -499,7 +497,7 @@ def get_beam_tensor(ell,exp,freqs,beam_type="gaussian"):
 
              if beam_type == "gaussian":
 
-                 beam_tensor[:,i,j] = get_bl(exp.FWHM[freqs[i]],ell)*get_bl(exp.FWHM[freqs[j]],ell)
+                 beam_tensor[:,i,j] = maps.get_bl(exp.FWHM[freqs[i]],ell)*maps.get_bl(exp.FWHM[freqs[j]],ell)
 
              elif beam_type == "real":
 
