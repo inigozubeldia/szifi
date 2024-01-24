@@ -52,7 +52,7 @@ class input_data:
 
                 #Fields
 
-                [tmap] = np.load(path + "planck_maps/planck_field_" + str(field_id) + "_tmap.npy")
+                [tmap] = np.load(path + "planck_field_" + str(field_id) + "_tmap.npy")
                 tmap[:,:,4] = tmap[:,:,4]/58.04
                 tmap[:,:,5] = tmap[:,:,5]/2.27
                 tmap = tmap*1e6
@@ -64,7 +64,108 @@ class input_data:
 
                 buffer_arcmin = 10. #usually around twice the beam
 
-                [mask_galaxy,mask_point,mask_tile] = np.load(path + "planck_maps/planck_field_" + str(field_id) + "_mask.npy")
+                [mask_galaxy,mask_point,mask_tile] = np.load(path + "planck_field_" + str(field_id) + "_mask.npy")
+
+                mask_ps = get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
+                mask_ps = get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
+
+                mask_peak_finding_no_tile = mask_galaxy*mask_point
+                mask_select_no_tile = get_buffered_mask(self.pix,mask_peak_finding_no_tile,buffer_arcmin,type="fft")
+                mask_peak_finding = mask_peak_finding_no_tile*mask_tile
+                mask_select = mask_select_no_tile*mask_tile
+                mask_select = get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile,criterion=params_szifi["min_ftile"])
+
+                self.data["mask_point"][field_id] = mask_point
+                self.data["mask_select"][field_id] = mask_select
+                self.data["mask_select_no_tile"][field_id] = mask_select_no_tile
+                self.data["mask_map"][field_id] = mask_ps
+                self.data["mask_ps"][field_id] = mask_ps
+                self.data["mask_peak_finding_no_tile"][field_id] = mask_peak_finding_no_tile
+                self.data["mask_peak_finding"][field_id] = mask_peak_finding
+
+                #Coupling matrix
+
+                if np.array_equal(mask_ps,get_apodised_mask(self.pix,np.ones((self.nx,self.nx)),
+                apotype="Smooth",aposcale=0.2)):
+
+                     cm_name = path + "apod_smooth_1024.fits"
+
+                else:
+
+                    cm_name = path + "apod_smooth_" + str(field_id) + ".fits"
+
+                self.data["coupling_matrix_name"][field_id] = cm_name
+
+            #Experiment specifications
+
+            self.data["experiment"] = experiment(experiment_name="Planck_real",params_szifi=params_szifi)
+
+
+        if params_data["data_set"] == "Planck_websky":
+
+            self.nside_tile = 8
+            self.n_tile = hp.nside2npix(self.nside_tile)
+
+            self.nx = 1024 #number of pixels per dimension
+            self.l = 14.8  #field size in deg
+            self.dx_arcmin = self.l/self.nx*60. #pixel size in arcmin
+            self.dx = self.dx_arcmin/180./60.*np.pi
+            self.pix = pixel(self.nx,self.dx)
+
+            self.data["nside_tile"] = self.nside_tile
+
+            cib_indices_random = np.load("cib_indices.npy")
+
+            for field_id in field_ids:
+
+                #Pixelation
+
+                self.data["nx"][field_id] = 1024
+                self.data["dx_arcmin"][field_id] = self.dx_arcmin
+                self.data["pix"][field_id] = self.pix
+
+                #Fields
+
+                maps = {}
+
+                name = path + "websky_maps/t_maps/"
+
+                maps["dust"] = np.load(name + "_dust_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+                maps["synchro"] = np.load(name + "_synchro_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+                maps["tSZ"] = np.load(name + "_tsz_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+                maps["kSZ"] = np.load(name + "_ksz_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+                maps["noise"] = np.load(name + "_noise_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+                maps["CMB"] = np.load(name + "_cmb_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+
+                cib_random = self.data["params_data"]["other_params"]["cib_random"]
+
+                if cib_random == False:
+
+                    field_cib = field_id
+
+                elif cib_random == True:
+
+                    field_cib = cib_indices_random[field_id]
+
+                maps["CIB"] = np.load(name + "_cib_" + str(field_cib) + "_tmap.npy")[0,:,:,:]
+                mask_point = np.load(path + "websky_maps/cib_mask/cib_mask_" + str(field_cib) + ".npy")
+
+                components = self.data["params_data"]["other_params"]["components"]
+
+                tmap = 0.
+
+                for component in components:
+
+                    tmap = tmap + maps[component] #muK?
+
+                self.data["t_obs"][field_id] = tmap
+                self.data["t_noi"][field_id] = tmap
+
+                #Masks
+
+                buffer_arcmin = 10. #usually around twice the beam
+
+                [mask_galaxy,mask_point_real,mask_tile] = np.load(path + "planck_maps/planck_field_" + str(field_id) + "_mask.npy")
 
                 mask_ps = get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
                 mask_ps = get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
@@ -100,27 +201,6 @@ class input_data:
 
             self.data["experiment"] = experiment(experiment_name="Planck_real",params_szifi=params_szifi)
 
-
-        elif params_data["data_set"] == "Planck_websky":
-
-            for field_id in field_ids:
-
-                #Fields
-
-                # self.data["mask_point"][field_id] = mask_point
-                # self.data["mask_select"][field_id] = mask_select
-                # self.data["mask_select_no_tile"][field_id] = mask_select_no_tile
-                # self.data["mask_map"][field_id] = mask_ps
-                # self.data["mask_ps"][field_id] = mask_ps
-
-                #Coupling matrix
-
-                self.data["coupling_matrix_name"][field_id] = path + "data/apod_smooth_1024.fits"
-
-
-            #Experiment specifications
-
-            #Coupling matrix
 
 
 class catalogue_data:

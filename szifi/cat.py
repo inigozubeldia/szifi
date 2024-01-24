@@ -4,10 +4,10 @@ import healpy as hp
 import scipy.integrate as integrate
 import scipy.special as sp
 from random import randrange
+import copy
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import pairwise_distances
 from astropy.io import fits
-import copy
 from .model import *
 from .maps import *
 from .sphere import *
@@ -744,7 +744,7 @@ class master_catalogue:
 
                 self.catalogue_master.catalogue[key + "_" + catalogue_name_in] = catalogue_in_id.catalogue[key][indices_sort]
 
-        indices_master_new = np.arange(self.catalogue_master.catalogue["index"][-1]+1,self.catalogue_master.catalogue["index"][-1]+len(indices_null)+1,dtype=np.int)
+        indices_master_new = np.arange(self.catalogue_master.catalogue["index"][-1]+1,self.catalogue_master.catalogue["index"][-1]+len(indices_null)+1,dtype=np.int64)
 
         for key in self.catalogue_master.catalogue.keys():
 
@@ -788,6 +788,14 @@ class detection_processor:
             if "find_0" in results_dict[field_id].sigma_vec:
 
                 self.sigma_matrix_noit[i,:] = results_dict[field_id].sigma_vec["find_0"]
+
+            if params_szifi["iterative"] == True and "find_1" not in results_dict[field_id].sigma_vec:
+
+                cat_keys = copy.deepcopy(list(results_dict[field_id].catalogues.keys()))
+
+                for cat_key in cat_keys:
+
+                    results_dict[field_id].catalogues[cat_key[0:-1] + "1"] = results_dict[field_id].catalogues[cat_key]
 
             self.results.append(results_dict[field_id])
 
