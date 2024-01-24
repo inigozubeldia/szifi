@@ -68,14 +68,14 @@ class input_data:
 
                 [mask_galaxy,mask_point,mask_tile] = np.load(path + "planck_field_" + str(field_id) + "_mask.npy")
 
-                mask_ps = get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
-                mask_ps = get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
+                mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
+                mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
 
                 mask_peak_finding_no_tile = mask_galaxy*mask_point
-                mask_select_no_tile = get_buffered_mask(self.pix,mask_peak_finding_no_tile,buffer_arcmin,type="fft")
+                mask_select_no_tile = maps.get_buffered_mask(self.pix,mask_peak_finding_no_tile,buffer_arcmin,type="fft")
                 mask_peak_finding = mask_peak_finding_no_tile*mask_tile
                 mask_select = mask_select_no_tile*mask_tile
-                mask_select = get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile,criterion=params_szifi["min_ftile"])
+                mask_select = maps.get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile,criterion=params_szifi["min_ftile"])
 
                 self.data["mask_point"][field_id] = mask_point
                 self.data["mask_select"][field_id] = mask_select
@@ -87,7 +87,7 @@ class input_data:
 
                 #Coupling matrix
 
-                if np.array_equal(mask_ps,get_apodised_mask(self.pix,np.ones((self.nx,self.nx)),
+                if np.array_equal(mask_ps, maps.get_apodised_mask(self.pix,np.ones((self.nx,self.nx)),
                 apotype="Smooth",aposcale=0.2)):
 
                      cm_name = path + "apod_smooth_1024.fits"
@@ -100,7 +100,7 @@ class input_data:
 
             #Experiment specifications
 
-            self.data["experiment"] = experiment(experiment_name="Planck_real",params_szifi=params_szifi)
+            self.data["experiment"] = expt.experiment(experiment_name="Planck_real",params_szifi=params_szifi)
 
 
         if params_data["data_set"] == "Planck_websky":
@@ -112,7 +112,7 @@ class input_data:
             self.l = 14.8  #field size in deg
             self.dx_arcmin = self.l/self.nx*60. #pixel size in arcmin
             self.dx = self.dx_arcmin/180./60.*np.pi
-            self.pix = pixel(self.nx,self.dx)
+            self.pix = maps.pixel(self.nx,self.dx)
 
             self.data["nside_tile"] = self.nside_tile
 
@@ -128,16 +128,16 @@ class input_data:
 
                 #Fields
 
-                maps = {}
+                tmaps = {}
 
                 name = path + "websky_maps/t_maps/"
 
-                maps["dust"] = np.load(name + "_dust_" + str(field_id) + "_tmap.npy")[0,:,:,:]
-                maps["synchro"] = np.load(name + "_synchro_" + str(field_id) + "_tmap.npy")[0,:,:,:]
-                maps["tSZ"] = np.load(name + "_tsz_" + str(field_id) + "_tmap.npy")[0,:,:,:]
-                maps["kSZ"] = np.load(name + "_ksz_" + str(field_id) + "_tmap.npy")[0,:,:,:]
-                maps["noise"] = np.load(name + "_noise_" + str(field_id) + "_tmap.npy")[0,:,:,:]
-                maps["CMB"] = np.load(name + "_cmb_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+                tmaps["dust"] = np.load(name + "_dust_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+                tmaps["synchro"] = np.load(name + "_synchro_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+                tmaps["tSZ"] = np.load(name + "_tsz_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+                tmaps["kSZ"] = np.load(name + "_ksz_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+                tmaps["noise"] = np.load(name + "_noise_" + str(field_id) + "_tmap.npy")[0,:,:,:]
+                tmaps["CMB"] = np.load(name + "_cmb_" + str(field_id) + "_tmap.npy")[0,:,:,:]
 
                 cib_random = self.data["params_data"]["other_params"]["cib_random"]
 
@@ -149,7 +149,7 @@ class input_data:
 
                     field_cib = cib_indices_random[field_id]
 
-                maps["CIB"] = np.load(name + "_cib_" + str(field_cib) + "_tmap.npy")[0,:,:,:]
+                tmaps["CIB"] = np.load(name + "_cib_" + str(field_cib) + "_tmap.npy")[0,:,:,:]
                 mask_point = np.load(path + "websky_maps/cib_mask/cib_mask_" + str(field_cib) + ".npy")
 
                 components = self.data["params_data"]["other_params"]["components"]
@@ -158,7 +158,7 @@ class input_data:
 
                 for component in components:
 
-                    tmap = tmap + maps[component] #muK?
+                    tmap = tmap + tmaps[component] #muK?
 
                 self.data["t_obs"][field_id] = tmap
                 self.data["t_noi"][field_id] = tmap
