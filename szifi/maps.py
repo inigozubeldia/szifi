@@ -1125,7 +1125,7 @@ def diffusive_inpaint_freq(tmap,mask,n_inpaint):
 
     return ret
 
-@jit
+@jit(nopython=True)
 def diffusive_inpaint(image,mask,n_inpaint):
 
     nx = len(image)
