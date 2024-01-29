@@ -393,6 +393,51 @@ def rfft2_to_fft2(pix,rfft):
 
     return fft
 
+def degrade_map(arr, degrade_fac, deg_axes=[0,1]):
+    """
+    Downsample an ndmap in the given axes by degrade_fac. Those axes must evenly divide into degrade_fac
+    arr: np.ndarray map
+    degrade_fac: int
+    deg_axes: list of ints indicating which axes to degrade
+    """
+    if arr is None:
+        return None
+    if type(degrade_fac) is not int:
+        raise TypeError(f"degrade_fac is of type {type(degrade_fac)}; must be int")
+    if np.any(np.array(arr.shape)[np.array(deg_axes)] < 100):
+        print(f"Warning: Degrading array of shape {arr.shape} on small axes {deg_axes}. Is this correct?")
+    if not np.all([arr.shape[ii] % degrade_fac == 0 for ii in deg_axes]):
+        raise ValueError(f"Array shape {arr.shape} must be evenly divisible by degrade_fac={degrade_fac} in the given axes {deg_axes}")
+    deg_axes = [ax % arr.ndim for ax in deg_axes] # Deal with negative indices
+    slices = tuple([slice(None, None, degrade_fac) if ax in deg_axes else slice(None) for ax in range(arr.ndim)])
+    return arr[slices]
+
+def degrade_pix(pix, degrade_fac):
+    """
+    Degrade a pixel object by degrade_fac; checks that map dimensions are an even multiple of degrade_fac
+    pix: szifi.maps.pixel object
+    degrade_fac: int
+    """
+    if not ((pix.nx % degrade_fac == 0) and (pix.ny % degrade_fac == 0)):
+        raise ValueError(f"Degrading mapsonly supported if map dimensions ({pix.nx, pix.ny}) are divisible by degrade_fac={degrade_fac}")
+    deg_pix = pixel(pix.nx//degrade_fac, pix.dx*degrade_fac, pix.ny//degrade_fac, pix.dy*degrade_fac)
+    return deg_pix
+
+def expand_matrix(arr, expand_fac):
+    """
+    Zero fill arr in the first two axes by the factor expand_fac
+    This splits arr into quadrants and adds zeros in the central cross; this is how to expand inv_cov
+    arr: np.ndarr with ndim>=2, first two axes are the ones to expand along
+    expand_fac: int, output shape will be (in0*expand_fac, in1*expand_fac, in2, in3, ...)
+    """
+    if expand_fac == 1:
+        return arr
+    new_arr = np.zeros((arr.shape[0]*expand_fac, arr.shape[1]*expand_fac) + arr.shape[2:])
+    shift_arr = np.fft.fftshift(arr, axes=(0,1))
+    edge = (expand_fac-1)*arr.shape[0]//2
+    new_arr[edge:-edge, edge:-edge] = shift_arr
+    new_arr = np.fft.ifftshift(new_arr, axes=(0,1))
+    return new_arr
 
 def nl(noise_uK_arcmin, fwhm_arcmin, lmax):
     """ returns the beam-deconvolved noise power spectrum in units of uK^2 for

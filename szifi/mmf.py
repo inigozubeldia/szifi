@@ -115,7 +115,6 @@ class cluster_finder:
             #Inpaint point sources
 
             if self.params_szifi["inpaint"] == True:
-
                 self.t_obs = maps.diffusive_inpaint_freq(self.t_obs,self.mask_point,self.params_szifi["n_inpaint"])
 
             mask_ps_0 = self.mask_ps
@@ -181,13 +180,16 @@ class cluster_finder:
                 #Estimate channel cross-spectra
 
                 if self.params_szifi["estimate_spec"] == "estimate":
-
+                    degrade_fac = self.params_szifi["powspec_degrade_fac"]
+                    bin_fac = self.params_szifi["powspec_bin_fac"]
                     self.ps = spec.power_spectrum(self.pix,
                     mask=self.mask_ps,
                     cm_compute=True,
                     cm_compute_scratch=self.params_szifi["compute_coupling_matrix"],
                     cm_save=self.params_szifi["save_coupling_matrix"],
-                    cm_name=self.coupling_matrix_name)
+                    cm_name=self.coupling_matrix_name,
+                    bin_fac=bin_fac,
+                    degrade_fac=degrade_fac)
 
                     self.cspec = spec.cross_spec(np.arange(len(self.params_szifi["freqs"])))
 
@@ -197,10 +199,12 @@ class cluster_finder:
                     decouple_type=self.params_szifi["decouple_type"],
                     inpaint_flag=self.params_szifi["inpaint"],
                     mask_point=self.mask_point,
-                    lsep=self.params_szifi["lsep"])
+                    lsep=self.params_szifi["lsep"],
+                    bin_fac=bin_fac,
+                    degrade_fac=degrade_fac)
 
-                    self.inv_cov = self.cspec.get_inv_cov(self.pix,interp_type=self.params_szifi["interp_type"])
-
+                    self.inv_cov = self.cspec.get_inv_cov(self.pix,interp_type=self.params_szifi["interp_type"], bin_fac=bin_fac, degrade_fac=degrade_fac)
+                    self.inv_cov = maps.expand_matrix(self.inv_cov, degrade_fac)
                 #If power spectrum is theoretically predicted - testing not up to date, do not use
 
                 elif self.params_szifi["estimate_spec"] == "theory":
