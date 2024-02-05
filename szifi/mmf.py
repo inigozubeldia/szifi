@@ -180,7 +180,13 @@ class cluster_finder:
                 #Estimate channel cross-spectra
 
                 if self.params_szifi["estimate_spec"] == "estimate":
-                    degrade_fac = self.params_szifi["powspec_degrade_fac"]
+                    lmax1d = self.params_szifi["powspec_lmax1d"]
+                    new_shape = self.params_szifi["powspec_new_shape"]
+                    if lmax1d is not None:
+                        if new_shape is not None:
+                            raise ValueError("Only one of powspec_lmax1d or powspec_new_shape can be specified")
+                        new_shape = maps.get_newshape_lmax1d((self.pix.nx, self.pix.ny), lmax1d, self.pix.dx)
+
                     bin_fac = self.params_szifi["powspec_bin_fac"]
                     self.ps = spec.power_spectrum(self.pix,
                     mask=self.mask_ps,
@@ -189,7 +195,7 @@ class cluster_finder:
                     cm_save=self.params_szifi["save_coupling_matrix"],
                     cm_name=self.coupling_matrix_name,
                     bin_fac=bin_fac,
-                    degrade_fac=degrade_fac)
+                    new_shape=new_shape)
 
                     self.cspec = spec.cross_spec(np.arange(len(self.params_szifi["freqs"])))
 
@@ -201,10 +207,10 @@ class cluster_finder:
                     mask_point=self.mask_point,
                     lsep=self.params_szifi["lsep"],
                     bin_fac=bin_fac,
-                    degrade_fac=degrade_fac)
+                    new_shape=new_shape)
 
-                    self.inv_cov = self.cspec.get_inv_cov(self.pix,interp_type=self.params_szifi["interp_type"], bin_fac=bin_fac, degrade_fac=degrade_fac)
-                    self.inv_cov = maps.expand_matrix(self.inv_cov, degrade_fac)
+                    self.inv_cov = self.cspec.get_inv_cov(self.pix,interp_type=self.params_szifi["interp_type"], bin_fac=bin_fac, new_shape=new_shape)
+                    self.inv_cov = maps.expand_matrix(self.inv_cov, (self.pix.nx, self.pix.ny))
                 #If power spectrum is theoretically predicted - testing not up to date, do not use
 
                 elif self.params_szifi["estimate_spec"] == "theory":
