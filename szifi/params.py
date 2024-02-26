@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 
 params_szifi_default = {
 
@@ -36,8 +37,8 @@ params_szifi_default = {
 "theta_find": "input",
 "detection_method": "maxima",
 "apod_type": "old",
-"path": "/home/iz221/szifi/",
-"path_data": "/home/iz221/szifi/data/",
+"path": "/home/erik/jbca/Programs/szifi/",
+"path_data": "/home/erik/jbca/Programs/szifi/data/",
 
 "mmf_type": "standard", #"standard" or "spectrally_constrained"
 "cmmf_type": "one_dep", #"one_dep" or "general". If only one SED is deprojected, use "one_dep" (faster); they are mathematically the same
@@ -54,6 +55,12 @@ params_szifi_default = {
 
 "cosmology": "Planck15",
 }
+
+params_szifi_so = deepcopy(params_szifi_default)
+params_so = {
+    "lrange" : [100, 10000],
+    "powspec_lmax1d": 10000}
+for key in params_so.keys(): params_szifi_so[key] = params_so[key]
 
 params_model_default = {
 #Pressure profile parameters
@@ -72,6 +79,13 @@ params_model_default = {
 params_data_default = {
 "data_set": "Planck_real",
 "field_ids": [0],
+"other_params":{
+"components":["tSZ","kSZ","CIB","CMB","noise"],
+}
+}
+params_data_so = {
+"data_set": "so_sims",
+"field_ids": np.loadtxt(params_szifi_so["path_data"]+"so_maps/healpix_ids_sosimmask_nside008.txt").astype('int64'),
 "other_params":{
 "components":["tSZ","kSZ","CIB","CMB","noise"],
 }
