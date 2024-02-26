@@ -37,8 +37,8 @@ params_szifi_default = {
 "theta_find": "input",
 "detection_method": "maxima",
 "apod_type": "old",
-"path": "/home/erik/jbca/Programs/szifi/",
-"path_data": "/home/erik/jbca/Programs/szifi/data/",
+"path": "/nvme/scratch/erosen/programs/szifi/",
+"path_data": "/nvme/scratch/erosen/programs/szifi/data",
 
 "mmf_type": "standard", #"standard" or "spectrally_constrained"
 "cmmf_type": "one_dep", #"one_dep" or "general". If only one SED is deprojected, use "one_dep" (faster); they are mathematically the same
@@ -85,7 +85,7 @@ params_data_default = {
 }
 params_data_so = {
 "data_set": "so_sims",
-"field_ids": np.loadtxt(params_szifi_so["path_data"]+"so_maps/healpix_ids_sosimmask_nside008.txt").astype('int64'),
+"field_ids": [0],
 "other_params":{
 "components":["tSZ","kSZ","CIB","CMB","noise"],
 }
