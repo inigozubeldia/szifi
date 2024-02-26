@@ -462,7 +462,7 @@ def resample_fft_simple(d, n, ngroup=100):
 	res *= float(n)/nold
 	return res
 
-def get_newshape_lmax1d(shape, lmax1d, dx_rad):
+def get_newshape_lmax1d(shape, lmax1d, dx_rad, powerOfTwo=False):
     """Get new shape for an array set by 1d-lmax (ie actual lmax will be sqrt(lmax_x^2 + lmax_y^2))"""
     if len(shape) > 2:
         raise ValueError("Expected 2-tuple shape")
@@ -471,6 +471,8 @@ def get_newshape_lmax1d(shape, lmax1d, dx_rad):
         return shape
     extent = np.array(shape) * dx_rad
     new_shape = np.ceil(extent / newdx).astype(int)
+    if powerOfTwo:
+        new_shape = (2**np.ceil(np.log2(new_shape))).astype(int)
     return tuple(new_shape)
 
 def degrade_map(arr, new_shape, deg_axes=[0,1]):
