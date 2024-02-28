@@ -38,7 +38,7 @@ params_szifi_default = {
 "detection_method": "maxima",
 "apod_type": "old",
 "path": "/nvme/scratch/erosen/programs/szifi/",
-"path_data": "/nvme/scratch/erosen/programs/szifi/data",
+"path_data": "/nvme/scratch/erosen/data/so_sims/",
 
 "mmf_type": "standard", #"standard" or "spectrally_constrained"
 "cmmf_type": "one_dep", #"one_dep" or "general". If only one SED is deprojected, use "one_dep" (faster); they are mathematically the same
@@ -58,6 +58,8 @@ params_szifi_default = {
 
 params_szifi_so = deepcopy(params_szifi_default)
 params_so = {
+    "beam" : "gaussian",
+    "min_ftile" : 0.2,
     "lrange" : [100, 10000],
     "powspec_lmax1d": 10000}
 for key in params_so.keys(): params_szifi_so[key] = params_so[key]

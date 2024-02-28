@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import healpy as hp
 from szifi import params, maps, expt, cat
@@ -231,19 +232,27 @@ class input_data:
 
                 #Fields
                 freqs = ['093'] # This should probably come from params_szifi or just assume tmap is already in the right format, but leave it for now
-                tmap = np.asarray([np.load(path + f"so_tiles/cmb+noise+sz_{freq}GHz-spline_tile{field_id_str}.npy") for freq in freqs])
-                tmap = tmap.transpose((1,2,0)) # reshape to nx, nx, nfreq
+                #tmap = np.asarray([np.load(path + f"so_tiles/cmb+noise+sz_{freq}GHz-spline_tile{field_id_str}.npy") for freq in freqs])
+                #tmap = tmap.transpose((1,2,0)) # reshape to nx, nx, nfreq
+
+                tmap = np.load(path + f"so_tiles/cmb+noise+sz_spline3_tile{field_id_str}.npy")
                 self.data["t_obs"][field_id] = tmap
                 self.data["t_noi"][field_id] = tmap
 
                 #Masks
                 buffer_arcmin = 10. #usually around twice the beam
-                mask_galaxy = np.load(path + f"so_tiles/cmb+noise+sz_093GHz-galmask_tile{field_id_str}.npy")
-                mask_tile   = np.load(path + f"so_tiles/cmb+noise+sz_093GHz_tile{field_id_str}_tilemask.npy")
+                mask_galaxy = np.load(path + f"so_tiles/cmb+noise+sz_galmask_tile{field_id_str}.npy")
+                mask_tile   = np.load(path + f"so_tiles/cmb+noise+sz_tile{field_id_str}_tilemask.npy")
                 mask_point = np.ones_like(mask_galaxy)
-                # mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2) ## This is very slow for big maps
-                # np.save(path+f"so_tiles/cmb+noise+sz_093GHz-galmaskapo_tile{field_id_str}.npy", mask_ps)
-                mask_ps = np.load(path+f"so_tiles/cmb+noise+sz_093GHz-galmaskapo_tile{field_id_str}.npy")
+                if np.all(mask_galaxy==1):
+                    apomaskname = path+f"so_tiles/cmb+noise+sz_galmaskapo_ones.npy"
+                else:
+                    apomaskname = path+f"so_tiles/cmb+noise+sz_galmaskapo_tile{field_id_str}.npy"
+                if os.path.isfile(apomaskname): # Load apodized mask if it exists
+                    mask_ps = np.load(apomaskname)
+                else: # Otherwise make and save
+                    mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2) ## This is very slow for big maps
+                    np.save(apomaskname, mask_ps.astype('float32'))
                 mask_peak_finding_no_tile = mask_galaxy*mask_point
                 mask_select_no_tile = maps.get_buffered_mask(self.pix,mask_peak_finding_no_tile,buffer_arcmin,type="fft")
                 mask_peak_finding = mask_peak_finding_no_tile*mask_tile
