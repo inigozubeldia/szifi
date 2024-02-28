@@ -105,7 +105,7 @@ def make_all_masks(nside, dx_deg, field_shape, healpix_ids, savename_prefix='map
     for ii, field_id in enumerate(healpix_ids[np.arange(imin,min(imax, healpix_ids.size))]):
         tilemaskname = savename_prefix + f"_tile{field_id:0{fsize}d}_tilemask.npy"
         make_tile(nside, dx_deg, field_shape, (ra_deg[ii], dec_deg[ii]), make_healpix_tiles_car, maskval=field_id, savename=tilemaskname)
-        vprint(f"{ii+1}/{len(healpix_ids)}", 2)
+        vprint(f"{ii+imin+1}/{len(healpix_ids)}", 2)
 
 def make_all_tiles(imap, nside, dx_deg, field_shape, healpix_ids, projection_method, sht_lmax=None, alm_fn=None, order=3, savename_prefix='map', verbosity=1, imin=0, imax=int(1e10)):
     """Project a CAR map onto tiles defined by healpixels
@@ -148,4 +148,4 @@ def make_all_tiles(imap, nside, dx_deg, field_shape, healpix_ids, projection_met
     for ii, field_id in enumerate(healpix_ids[np.arange(imin,min(imax, healpix_ids.size))]):
         tilename = savename_prefix + f"_tile{field_id:0{fsize}d}.npy"
         make_tile(imap, dx_deg, field_shape, (ra_deg[ii], dec_deg[ii]), project_fn, dtype, order, None, tilename)
-        vprint(f"{ii+1}/{len(healpix_ids)}", 2)
+        vprint(f"{ii+1+imin}/{len(healpix_ids)}", 2)
