@@ -8,7 +8,7 @@ import pylab as pl
 
 #Set parameters
 
-params_szifi = szifi.params_szifi_default
+params_szifi = szifi.params_szifi_so
 params_data = szifi.params_data_so
 params_model = szifi.params_model_default
 
@@ -17,9 +17,9 @@ bin_fac=4
 params_szifi["powspec_lmax1d"] = lmax1d
 params_szifi["powspec_bin_fac"] = bin_fac
 #Input data
-params_szifi['compute_coupling_matrix'] = True
-params_szifi['save_coupling_matrix'] = True
-params_data["field_ids"] = [208, 209]
+# params_szifi['compute_coupling_matrix'] = True
+# params_szifi['save_coupling_matrix'] = True
+params_data["field_ids"] = [208]
 data = szifi.input_data(params_szifi=params_szifi,params_data=params_data)
 
 #Find clusters
