@@ -20,10 +20,7 @@ class cluster_finder:
         self.theta_500_vec = self.params_szifi["theta_500_vec_arcmin"]
         self.rank = rank
         self.exp = self.data_file["experiment"]
-
-        if self.params_szifi["cosmology"] == "Planck15":
-
-            self.cosmology = model.cosmological_model(name="Planck15").cosmology
+        self.cosmology = model.cosmological_model(name=self.params_szifi["cosmology"]).cosmology
 
         if self.params_szifi["detection_method"] == "DBSCAN":
 
