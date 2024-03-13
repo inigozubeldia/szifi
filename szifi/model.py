@@ -2,6 +2,7 @@ import numpy as np
 from scipy import integrate, interpolate
 import scipy.optimize as optimize
 from szifi import maps
+import astropy.cosmology as cp
 
 #Delta critical always
 
@@ -542,18 +543,17 @@ class cosmological_model:
     def __init__(self,name="Planck15"):
 
         if name == "Planck15":
-
-            from astropy.cosmology import Planck15
-
-            self.cosmology = Planck15
+            self.cosmology = cp.Planck15
 
         elif name == "Websky":
-
             self.Ob0 = 0.049
             self.Oc0 = 0.261
             self.Om0 = self.Ob0 + self.Oc0
             self.h      = 0.68
             self.ns     = 0.965
             self.sigma8 = 0.81
-            self.cosmology = cp.FlatLambdaCDM(Om0=self.Om0,H0=self.h*100.,Ob0=self.Ob0)
+            self.Neff = 3.046
+            self.m_nu = [0.06, 0, 0]
+            self.Tcmb0 = 2.7255
+            self.cosmology = cp.FlatLambdaCDM(Om0=self.Om0,H0=self.h*100.,Ob0=self.Ob0, Tcmb0=self.Tcmb0, Neff=self.Neff, m_nu=self.m_nu)
             self.As = 2.079522e-09
