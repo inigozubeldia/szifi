@@ -23,31 +23,24 @@ class cluster_finder:
         self.cosmology = model.cosmological_model(name=self.params_szifi["cosmology"]).cosmology
 
         if self.params_szifi["detection_method"] == "DBSCAN":
-
             from sklearn.cluster import DBSCAN
 
         if self.params_szifi["mmf_type"] == "standard" and self.params_szifi["a_matrix"] is None:
-
             a_matrix = np.zeros((len(self.exp.tsz_sed),1))
             a_matrix[:,0] = self.exp.tsz_sed
             self.params_szifi["a_matrix"] = a_matrix
 
         if self.params_szifi["deproject_cib"] is not None:
-
             get_a_matrix_cib(self.params_szifi,self.params_model,self.data_file)
 
     def find_clusters(self):
 
         #Print some information
-
         if self.params_szifi["mmf_type"] == "standard":
-
             type_name = "standard"
 
         elif self.params_szifi["mmf_type"] == "spectrally_constrained":
-
             n_dep = self.params_szifi["a_matrix"].shape[1]-1
-
             type_name = "spectrally constrained, " + str(n_dep) + " component(s) deprojected"
 
         print("SZiFi")
@@ -88,15 +81,12 @@ class cluster_finder:
             self.pix = maps.pixel(self.nx,self.dx)
 
             if self.params_szifi["decouple_type"] == "master" and self.params_szifi["compute_coupling_matrix"] == False:
-
                 self.coupling_matrix_name = self.data_file["coupling_matrix_name"][field_id]
 
             else:
-
                 self.coupling_matrix_name = None
 
             if self.params_szifi["extraction_mode"] == "fixed":
-
                 self.catalogue_fixed = self.data_file["catalogue_input"][field_id]
 
             #Select frequency channels to use
@@ -105,7 +95,6 @@ class cluster_finder:
             self.t_noi = maps.select_freqs(self.t_noi,self.params_szifi["freqs"])
 
             if self.params_szifi["get_q_true"] == True:
-
                 self.t_true = self.data_file["t_true"][field_id]
                 self.t_true = maps.select_freqs(self.t_true,self.params_szifi["freqs"])
 
@@ -417,7 +406,6 @@ class filter_maps:
     #Find detections blindly
 
     def find_clusters(self):
-
         t_obs = self.t_obs
 
         if self.params["apod_type"] == "old":
@@ -526,7 +514,6 @@ class filter_maps:
 
             cat_new = cat.apply_mask_select(cat_new,self.mask_select_list[i],self.pix)
             self.results_list.append(cat_new)
-
         return 0
 
     #Apply MMF for input catalogue

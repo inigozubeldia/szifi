@@ -236,6 +236,7 @@ class input_data:
                 #tmap = tmap.transpose((1,2,0)) # reshape to nx, nx, nfreq
 
                 tmap = np.load(path + f"so_tiles/cmb+noise+sz_spline3_tile{field_id_str}.npy")
+                #tmap = np.load(path + f"so_tiles/cmb+noise+sz_sht20000_tile{field_id_str}.npy")
                 self.data["t_obs"][field_id] = tmap
                 self.data["t_noi"][field_id] = tmap
 
