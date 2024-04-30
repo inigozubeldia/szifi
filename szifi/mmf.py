@@ -40,6 +40,11 @@ class cluster_finder:
             get_a_matrix_cib(self.params_szifi,self.params_model,self.data_file)
 
     def find_clusters(self):
+        times={}
+        ctime=time.time()
+        def add_time(times, ctime, label):
+            times[label] = time.time()-ctime
+            return times, time.time()
 
         #Print some information
 
@@ -74,7 +79,6 @@ class cluster_finder:
             print("")
 
             #Gather input data
-
             self.t_obs = self.data_file["t_obs"][field_id] #in muK
             self.t_noi = self.data_file["t_noi"][field_id] #in muK
 
@@ -103,7 +107,6 @@ class cluster_finder:
                 self.catalogue_fixed = self.data_file["catalogue_input"][field_id]
 
             #Select frequency channels to use
-
             self.t_obs = maps.select_freqs(self.t_obs,self.params_szifi["freqs"])
             self.t_noi = maps.select_freqs(self.t_noi,self.params_szifi["freqs"])
 
@@ -112,11 +115,14 @@ class cluster_finder:
                 self.t_true = self.data_file["t_true"][field_id]
                 self.t_true = maps.select_freqs(self.t_true,self.params_szifi["freqs"])
 
+            times, ctime = add_time(times, ctime, 1)
+                
             #Inpaint point sources
 
             if self.params_szifi["inpaint"] == True:
                 self.t_obs = maps.diffusive_inpaint_freq(self.t_obs,self.mask_point,self.params_szifi["n_inpaint"])
 
+            times, ctime = add_time(times, ctime, 2)
             mask_ps_0 = self.mask_ps
             mask_point_0 = self.mask_point
 
@@ -143,12 +149,13 @@ class cluster_finder:
 
                     self.t_true = self.t_true*mask_map_t
 
+            times, ctime = add_time(times, ctime, 3)
             #Filter input maps in harmonic space
 
             self.t_obs = maps.filter_tmap(self.t_obs,self.pix,self.params_szifi["lrange"])
             self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"])
             t_noi_original = self.t_noi
-
+            times, ctime = add_time(times, ctime, 4)
             if self.params_szifi["get_q_true"] == True:
 
                 self.t_true = maps.filter_tmap(self.t_true,self.pix,self.params_szifi["lrange"])
@@ -158,7 +165,7 @@ class cluster_finder:
             i = 0
 
             while i >= 0:
-
+                times, ctime=add_time(times, ctime, 'loopstart')
                 if self.rank == 0:
 
                     print("Noise it",i)
@@ -227,6 +234,7 @@ class cluster_finder:
 
                     self.params_szifi["cmmf_type"] = "standard_mmf"
 
+                times, ctime = add_time(times, ctime, 5)
                 self.cmmf = scmmf_precomputation(pix=self.pix,
                 freqs=self.params_szifi["freqs"],
                 inv_cov=self.inv_cov,
@@ -238,6 +246,7 @@ class cluster_finder:
                 comp_to_calculate=self.params_szifi["comp_to_calculate"],
                 mmf_type=self.params_szifi["mmf_type"])
 
+                times, ctime = add_time(times, ctime, 6)
                 #Matched filter construction
 
                 self.filtered_maps = filter_maps(t_obs=self.t_obs,
@@ -255,7 +264,7 @@ class cluster_finder:
                 rank=self.rank,
                 exp=self.exp,
                 cmmf=self.cmmf)
-
+                times, ctime = add_time(times, ctime, 7)
                 #SZiFi in cluster finding mode: blind cluster detection
 
                 if self.params_szifi["extraction_mode"] == "find" or (self.params_szifi["extraction_mode"] == "fixed" and self.params_szifi["iterative"] == True):# and i < self.max_it):
@@ -265,7 +274,7 @@ class cluster_finder:
                         print("Cluster finding")
 
                     self.filtered_maps.find_clusters()
-
+                    times, ctime=add_time(times, ctime, 8)
                     self.results.sigma_vec["find_" + str(i)] = self.filtered_maps.sigma_vec
 
                     results_list = self.filtered_maps.results_list
@@ -276,7 +285,7 @@ class cluster_finder:
                     if self.rank == 0:
 
                         print("Detections SNR",np.flip(np.sort(self.results.catalogues["catalogue_find_" + str(i)].catalogue["q_opt"])))
-
+                    times, ctime=add_time(times, ctime, 9)
                 #SZiFi in fixed mode: extraction for an input catalogue
 
                 if (self.params_szifi["extraction_mode"] == "fixed"):# and (i >= self.it_min_for_fixed):
@@ -371,6 +380,8 @@ class cluster_finder:
                 self.results.get_lonlat(field_id,self.pix,nside=self.data_file["nside_tile"])
 
             self.results_dict[field_id] = self.results
+            times, ctime=add_time(times, ctime, 10)
+            print(times)
 
 #Get mask at the location of detected clusters (for iterative noise covariance estimation)
 
