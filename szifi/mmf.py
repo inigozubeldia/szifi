@@ -6,7 +6,13 @@ import warnings
 warnings.filterwarnings("ignore")
 
 #Core class for cluster finding
-
+def add_time(times, ctime, label):
+    times[label] = f"{time.time()-ctime:.2f}"
+    return times, time.time()
+def pt(ctime, label):
+    print(label, f"{time.time()-ctime:.2f}")
+    return time.time()
+    
 class cluster_finder:
 
     def __init__(self,params_szifi=params.params_szifi_default,
@@ -42,9 +48,6 @@ class cluster_finder:
     def find_clusters(self):
         times={}
         ctime=time.time()
-        def add_time(times, ctime, label):
-            times[label] = time.time()-ctime
-            return times, time.time()
 
         #Print some information
 
@@ -115,14 +118,14 @@ class cluster_finder:
                 self.t_true = self.data_file["t_true"][field_id]
                 self.t_true = maps.select_freqs(self.t_true,self.params_szifi["freqs"])
 
-            times, ctime = add_time(times, ctime, 1)
+            ctime = pt(ctime, 'load data')
                 
             #Inpaint point sources
 
             if self.params_szifi["inpaint"] == True:
                 self.t_obs = maps.diffusive_inpaint_freq(self.t_obs,self.mask_point,self.params_szifi["n_inpaint"])
 
-            times, ctime = add_time(times, ctime, 2)
+            ctime = pt(ctime, 'inpaint')
             mask_ps_0 = self.mask_ps
             mask_point_0 = self.mask_point
 
@@ -149,13 +152,13 @@ class cluster_finder:
 
                     self.t_true = self.t_true*mask_map_t
 
-            times, ctime = add_time(times, ctime, 3)
+            ctime = pt(ctime, 't3')
             #Filter input maps in harmonic space
 
             self.t_obs = maps.filter_tmap(self.t_obs,self.pix,self.params_szifi["lrange"])
             self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"])
             t_noi_original = self.t_noi
-            times, ctime = add_time(times, ctime, 4)
+            ctime = pt(ctime, 'filter_tmap')
             if self.params_szifi["get_q_true"] == True:
 
                 self.t_true = maps.filter_tmap(self.t_true,self.pix,self.params_szifi["lrange"])
@@ -165,7 +168,6 @@ class cluster_finder:
             i = 0
 
             while i >= 0:
-                times, ctime=add_time(times, ctime, 'loopstart')
                 if self.rank == 0:
 
                     print("Noise it",i)
@@ -177,13 +179,13 @@ class cluster_finder:
                 self.mask_point = mask_point_0*mask_cluster
 
                 #Inpaint noise map (as it may change with iteration)
-
+                ctime=time.time()
                 if self.params_szifi["inpaint"] == True:
 
                     self.t_noi = maps.diffusive_inpaint_freq(t_noi_original,self.mask_point,self.params_szifi["n_inpaint"])
 
                 self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"])
-
+                ctime = pt(ctime, 'inpaint/filter again')
                 #Estimate channel cross-spectra
 
                 if self.params_szifi["estimate_spec"] == "estimate":
@@ -215,7 +217,7 @@ class cluster_finder:
                     lsep=self.params_szifi["lsep"],
                     bin_fac=bin_fac,
                     new_shape=new_shape)
-
+                    ctime = pt(ctime, 'power spectrum')
                     self.inv_cov = self.cspec.get_inv_cov(self.pix,interp_type=self.params_szifi["interp_type"], bin_fac=bin_fac, new_shape=new_shape)
                     self.inv_cov = maps.expand_matrix(self.inv_cov, (self.pix.nx, self.pix.ny))
                 #If power spectrum is theoretically predicted - testing not up to date, do not use
@@ -227,14 +229,13 @@ class cluster_finder:
                 #Filter covariance matrix
 
                 self.inv_cov = maps.filter_cov(self.inv_cov,self.pix,self.params_szifi["lrange"])
-
+                ctime = pt(ctime, 'invcov')
                 #Compute weights for constrained MMF
 
                 if self.params_szifi["mmf_type"] == "standard":
 
                     self.params_szifi["cmmf_type"] = "standard_mmf"
 
-                times, ctime = add_time(times, ctime, 5)
                 self.cmmf = scmmf_precomputation(pix=self.pix,
                 freqs=self.params_szifi["freqs"],
                 inv_cov=self.inv_cov,
@@ -246,7 +247,7 @@ class cluster_finder:
                 comp_to_calculate=self.params_szifi["comp_to_calculate"],
                 mmf_type=self.params_szifi["mmf_type"])
 
-                times, ctime = add_time(times, ctime, 6)
+                ctime = pt(ctime, 'scmmf_precom')
                 #Matched filter construction
 
                 self.filtered_maps = filter_maps(t_obs=self.t_obs,
@@ -264,7 +265,7 @@ class cluster_finder:
                 rank=self.rank,
                 exp=self.exp,
                 cmmf=self.cmmf)
-                times, ctime = add_time(times, ctime, 7)
+                ctime = pt(ctime, 'filter_maps')
                 #SZiFi in cluster finding mode: blind cluster detection
 
                 if self.params_szifi["extraction_mode"] == "find" or (self.params_szifi["extraction_mode"] == "fixed" and self.params_szifi["iterative"] == True):# and i < self.max_it):
@@ -466,12 +467,12 @@ class filter_maps:
                     tem_nc = None
 
                 elif self.params_model["profile_type"] == "arnaud":
-
+                    ctime=time.time()
                     z = 0.2
                     M_500 = model.get_m_500(self.theta_500_vec[j],z,self.cosmology)
                     nfw = model.gnfw(M_500,z,self.cosmology,
                     type=self.params_model["profile_type"])
-
+                    
                     t_tem,t_tem_nc = nfw.get_t_map_convolved(self.pix,
                     self.exp,
                     beam=self.params["beam"],
@@ -479,22 +480,22 @@ class filter_maps:
                     (0.5*self.pix.nx+subgrid_jx[k])*self.pix.dx],
                     get_nc=True,
                     sed=False)
-
+                    ctime = pt(ctime, 'x1')
                     t_tem = t_tem/nfw.get_y_norm(self.params["norm_type"])
-
+                    ctime=pt(ctime, 't_tem')
                     t_tem_nc = maps.select_freqs(t_tem_nc,self.params["freqs"])
                     tem_nc = maps.filter_tmap(t_tem_nc,self.pix,self.params["lrange"])/nfw.get_y_norm(self.params["norm_type"])
 
                 t_tem = maps.select_freqs(t_tem,self.params["freqs"])
                 tem = maps.filter_tmap(t_tem,self.pix,self.params["lrange"])
-
+                ctime = pt(ctime, 'x2')
                 if self.params["apod_type"] == "old":
 
                     t_obs = maps.filter_tmap(t_obs,self.pix,self.params["lrange"])
 
                 q_map,y_map,std = get_mmf_q_map(t_obs,tem,self.inv_cov,self.pix,mmf_type=self.params["mmf_type"],
                 cmmf_prec=self.cmmf,tem_nc=tem_nc)
-
+                ctime = pt(ctime, 'get_mmf_q_map')
                 if self.params["save_snr_maps"] == True:
 
                     np.save(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_list[0])
@@ -513,7 +514,7 @@ class filter_maps:
         y_coord = maps.rmap(self.pix).get_y_coord_map_wrt_origin() #horizontal coordinate, in rad
 
         for i in range(0,n_mask_select):
-
+            ctime=time.time()
             q_tensor = apply_mask_peak_finding(self.q_tensor,self.mask_peak_finding_list[i])
             y_tensor = apply_mask_peak_finding(self.y_tensor,self.mask_peak_finding_list[i])
 
@@ -540,7 +541,7 @@ class filter_maps:
 
             cat_new = cat.apply_mask_select(cat_new,self.mask_select_list[i],self.pix)
             self.results_list.append(cat_new)
-
+            pt(ctime, 'x5')
         return 0
 
     #Apply MMF for input catalogue
