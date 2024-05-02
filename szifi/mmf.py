@@ -452,7 +452,6 @@ class filter_maps:
 
                     ps = model.point_source(self.exp,beam_type=self.params["beam"])
                     t_tem = ps.get_t_map_convolved(self.pix)
-                    tem_nc = None
 
                 elif self.params_model["profile_type"] == "arnaud":
 
@@ -461,20 +460,35 @@ class filter_maps:
                     nfw = model.gnfw(M_500,z,self.cosmology,
                     type=self.params_model["profile_type"])
 
-                    t_tem,t_tem_nc = nfw.get_t_map_convolved(self.pix,
-                    self.exp,
-                    beam=self.params["beam"],
-                    theta_cart=[(0.5*self.pix.nx+subgrid_ix[k])*self.pix.dx,
-                    (0.5*self.pix.nx+subgrid_jx[k])*self.pix.dx],
-                    get_nc=True,
-                    sed=False)
+                    theta_cart = [(0.5*self.pix.nx+subgrid_ix[k])*self.pix.dx,
+                    (0.5*self.pix.nx+subgrid_jx[k])*self.pix.dx]
+
+                    if self.params["mmf_type"] == "standard" or (self.params["mmf_type"] == "spectrally_constrained" and self.params["cmmf_type"] == "one_dep"):
+
+                        t_tem = nfw.get_t_map_convolved(self.pix,
+                        self.exp,
+                        beam=self.params["beam"],
+                        theta_cart=theta_cart,
+                        get_nc=False,
+                        sed=False)
+                        t_tem_norm = None
+
+                    elif self.params["mmf_type"] == "spectrally_constrained" and self.params["cmmf_type"] == "general":
+
+                        theta_misc = maps.get_theta_misc(theta_cart,self.pix)
+
+                        t_tem_norm,t_tem = nfw.get_t_map_convolved(self.pix,
+                        self.exp,
+                        beam=self.params["beam"],
+                        theta_cart=theta_cart,
+                        get_nc=True,
+                        sed=False)
+
+                        t_tem_norm = t_tem_norm/nfw.get_y_norm(self.params["norm_type"])
+                        t_tem_norm = maps.filter_tmap(t_tem_norm,self.pix,self.params["lrange"])
 
                     t_tem = t_tem/nfw.get_y_norm(self.params["norm_type"])
 
-                    t_tem_nc = maps.select_freqs(t_tem_nc,self.params["freqs"])
-                    tem_nc = maps.filter_tmap(t_tem_nc,self.pix,self.params["lrange"])/nfw.get_y_norm(self.params["norm_type"])
-
-                t_tem = maps.select_freqs(t_tem,self.params["freqs"])
                 tem = maps.filter_tmap(t_tem,self.pix,self.params["lrange"])
 
                 if self.params["apod_type"] == "old":
@@ -482,7 +496,7 @@ class filter_maps:
                     t_obs = maps.filter_tmap(t_obs,self.pix,self.params["lrange"])
 
                 q_map,y_map,std = get_mmf_q_map(t_obs,tem,self.inv_cov,self.pix,mmf_type=self.params["mmf_type"],
-                cmmf_prec=self.cmmf,tem_nc=tem_nc)
+                cmmf_prec=self.cmmf,tem_norm=t_tem_norm)
 
                 if self.params["save_snr_maps"] == True:
 
@@ -570,6 +584,7 @@ class filter_maps:
             self.params["lrange"],
             apod_type=self.params["apod_type"],
             mmf_type=self.params["mmf_type"],
+            cmmf_type=self.params["cmmf_type"],
             cmmf_prec=self.cmmf,
             freqs=self.params["freqs"],
             exp=self.exp,
@@ -606,7 +621,7 @@ class filter_maps:
 #Apply MMF for input catalogue
 
 def extract_at_input_value(t_true,inv_cov,pix,beam,M_500,z,cosmology,norm_type,
-theta_x,theta_y,lrange,apod_type=None,mmf_type=None,cmmf_prec=None,
+theta_x,theta_y,lrange,apod_type=None,mmf_type=None,cmmf_prec=None,cmmf_type=None,
 freqs=None,exp=None,comp_to_calculate=None,profile_type=None):
 
     nfw = model.gnfw(M_500,z,cosmology,type=profile_type)
@@ -618,18 +633,34 @@ freqs=None,exp=None,comp_to_calculate=None,profile_type=None):
     q_opt = np.zeros(len(comp_to_calculate))
     y0_est = np.zeros(len(comp_to_calculate))
 
-    tem,tem_nc = nfw.get_t_map_convolved(pix,exp,beam=beam,get_nc=True,sed=False)
+    if mmf_type == "standard" or (mmf_type == "spectrally_constrained" and cmmf_type == "one_dep"):
+
+        tem = nfw.get_t_map_convolved(pix,
+        exp,
+        beam=beam,
+        get_nc=False,
+        sed=False)
+        t_tem_norm = None
+
+    elif mmf_type == "spectrally_constrained" and cmmf_type == "general":
+
+        t_tem_norm,tem = nfw.get_t_map_convolved(pix,
+        exp,
+        beam=beam,
+        get_nc=True,
+        sed=False)
+
+        t_tem_norm = t_tem_norm/nfw.get_y_norm(norm_type)
+        t_tem_norm = maps.filter_tmap(t_tem_norm,pix,lrange)
+
     tem = tem/nfw.get_y_norm(norm_type)
-    tem_nc = tem_nc/nfw.get_y_norm(norm_type)
     tem = maps.select_freqs(tem,freqs)
-    tem_nc = maps.select_freqs(tem_nc,freqs)
     tem = maps.filter_tmap(tem,pix,lrange)
-    tem_nc = maps.filter_tmap(tem_nc,pix,lrange)
 
     for k in range(0,len(comp_to_calculate)):
 
         q_map_tem,y_map,std = get_mmf_q_map(t_true,tem,inv_cov,pix,mmf_type=mmf_type,
-        cmmf_prec=cmmf_prec,tem_nc=tem_nc,comp=comp_to_calculate[k])
+        cmmf_prec=cmmf_prec,tem_norm=t_tem_norm,comp=comp_to_calculate[k])
 
         if k == 0:
 
@@ -736,49 +767,40 @@ def get_maxima(max_mask):
 #Get SNR map
 
 def get_mmf_q_map(tmap,tem,inv_cov,pix,theta_misc_template=[0.,0.],
-mmf_type="standard",cmmf_prec=None,tem_nc=None,comp=0):
-
-    if mmf_type == "partially_spectrally_constrained":
-
-        a = 1.
-
-    else:
-
-        q_map,y_map,std = get_mmf_q_map_s(tmap,tem,inv_cov,pix,
-        theta_misc_template=theta_misc_template,mmf_type=mmf_type,cmmf_prec=cmmf_prec,
-        tem_nc=tem_nc,comp=comp)
-
-
-    return q_map,y_map,std
-
-def get_mmf_q_map_s(tmap,tem,inv_cov,pix,theta_misc_template=[0.,0.],
-mmf_type="standard",cmmf_prec=None,tem_nc=None,comp=0):
+mmf_type="standard",cmmf_prec=None,comp=0,tem_norm=None):
 
     n_freqs = tmap.shape[2]
     y_map = np.zeros((pix.nx,pix.ny))
-    norm_map = np.zeros((pix.nx,pix.ny))
+    #norm_map = np.zeros((pix.nx,pix.ny))
 
     tem_fft = maps.get_fft_f(tem,pix)
 
-    if tem_nc is not None: #Used if cmmf_type == "general"
-
-        tem_nc = maps.get_fft_f(tem_nc,pix)
-
-    filter_fft = get_tem_conv_fft(pix,tem_fft,inv_cov,mmf_type=mmf_type,cmmf_prec=cmmf_prec,
-    tem_nc=tem_nc,comp=comp)
+    filter_fft = get_tem_conv_fft(pix,tem_fft,inv_cov,mmf_type=mmf_type,
+    cmmf_prec=cmmf_prec,comp=comp)
     filter = maps.get_ifft_f(filter_fft,pix).real
 
     tem = maps.get_tmap_times_fvec(tem,cmmf_prec.a_matrix[:,comp]).real #new line
 
+    if tem_norm is None:
+
+        tem_norm = tem
+
+    else:
+
+        tem_norm = maps.get_tmap_times_fvec(tem_norm,cmmf_prec.a_matrix[:,comp]).real #new line
+
     for i in range(n_freqs):
 
         y = sg.fftconvolve(tmap[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
-        norm = sg.fftconvolve(tem[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
+        #norm = sg.fftconvolve(tem_norm[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
 
         y_map += y
-        norm_map += norm
+        #norm_map += norm
 
-    norm = np.max(norm_map)
+    norm = np.sum(tem_norm*filter)*pix.dx*pix.dy
+
+    #norm = np.max(norm_map)
+
     y_map = y_map/norm
 
     std = 1./np.sqrt(norm)
@@ -786,8 +808,7 @@ mmf_type="standard",cmmf_prec=None,tem_nc=None,comp=0):
 
     return q_map,y_map,std
 
-def get_tem_conv_fft(pix_tem,tem_fft,inv_cov,mmf_type="standard",cmmf_prec=None,
-tem_nc=None,comp=0):
+def get_tem_conv_fft(pix_tem,tem_fft,inv_cov,mmf_type="standard",cmmf_prec=None,comp=0):
 
     if mmf_type == "standard":
 
@@ -812,7 +833,7 @@ tem_nc=None,comp=0):
         elif cmmf_prec.cmmf_type == "general":
 
             filter_fft_0 = cmmf_prec.w_norm_list[comp]
-            filter_fft = filter_fft_0*tem_nc
+            filter_fft = filter_fft_0*tem_fft
 
     filter_fft[np.isnan(filter_fft)] = 0.
 
@@ -871,8 +892,6 @@ class scmmf_precomputation:
             dot = utils.invert_cov(np.einsum('abdc,abde->abce',a_matrix_fft,pre))
             self.W = np.einsum('abcd,abed->abce',dot,pre)
             cov = utils.invert_cov(inv_cov)
-
-            t0 = time.time()
 
             self.w_list = []
             self.sigma_y_list = []
