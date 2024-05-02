@@ -394,73 +394,73 @@ def rfft2_to_fft2(pix,rfft):
     return fft
 
 def resample_fft(d, n, axes=None):
-	"""Resample numpy array d via fourier-reshaping. Requires periodic data.
-	n indicates the desired output lengths of the axes that are to be
-	resampled. By default the last len(n) axes are resampled, but this
-	can be controlled via the axes argument.
+        """Resample numpy array d via fourier-reshaping. Requires periodic data.
+        n indicates the desired output lengths of the axes that are to be
+        resampled. By default the last len(n) axes are resampled, but this
+        can be controlled via the axes argument.
         This function borrowed from Sigurd Naess' pixell,
         Copyright (c) 2018-2021, Members of the Simons Observatory Collaboration"""
-	d = np.asanyarray(d)
-	# Compute output lengths from factors if necessary
-	n = np.atleast_1d(n)
-	if axes is None: axes = np.arange(-len(n),0)
-	else: axes = np.atleast_1d(axes)
-	if len(n) == 1: n = np.repeat(n, len(axes))
-	else: assert len(n) == len(axes)
-	assert len(n) <= d.ndim
-	# Nothing to do?
-	if np.all(d.shape[-len(n):] == n): return d
-	# Use the simple version if we can. It has lower memory overhead
-	if d.ndim == 2 and len(n) == 1 and (axes[0] == 1 or axes[0] == -1):
-		return resample_fft_simple(d, n[0])
-	# Perform the fourier transform
-	fd = np.fft.fftn(d, axes=axes)
-	# Frequencies are 0 1 2 ... N/2 (-N)/2 (-N)/2+1 .. -1
-	# Ex 0* 1 2* -1 for n=4 and 0* 1 2 -2 -1 for n=5
-	# To upgrade,   insert (n_new-n_old) zeros after n_old/2
-	# To downgrade, remove (n_old-n_new) values after n_new/2
-	# The idea is simple, but arbitrary dimensionality makes it
-	# complicated.
-	norm = 1.0
-	for ax, nnew in zip(axes, n):
-		ax %= d.ndim
-		nold = d.shape[ax]
-		dn   = nnew-nold
-		if dn > 0:
-			padvals = np.zeros(fd.shape[:ax]+(dn,)+fd.shape[ax+1:],fd.dtype)
-			spre  = tuple([slice(None)]*ax+[slice(0,nold//2)]+[slice(None)]*(fd.ndim-ax-1))
-			spost = tuple([slice(None)]*ax+[slice(nold//2,None)]+[slice(None)]*(fd.ndim-ax-1))
-			fd = np.concatenate([fd[spre],padvals,fd[spost]],axis=ax)
-		elif dn < 0:
-			spre  = tuple([slice(None)]*ax+[slice(0,nnew//2)]+[slice(None)]*(fd.ndim-ax-1))
-			spost = tuple([slice(None)]*ax+[slice(nnew//2-dn,None)]+[slice(None)]*(fd.ndim-ax-1))
-			fd = np.concatenate([fd[spre],fd[spost]],axis=ax)
-		norm *= float(nnew)/nold
-	# And transform back
-	res  = np.fft.ifftn(fd, axes=axes, norm='backward')
-	del fd
-	res *= norm
-	return res if np.issubdtype(d.dtype, np.complexfloating) else res.real
+        d = np.asanyarray(d)
+        # Compute output lengths from factors if necessary
+        n = np.atleast_1d(n)
+        if axes is None: axes = np.arange(-len(n),0)
+        else: axes = np.atleast_1d(axes)
+        if len(n) == 1: n = np.repeat(n, len(axes))
+        else: assert len(n) == len(axes)
+        assert len(n) <= d.ndim
+        # Nothing to do?
+        if np.all(d.shape[-len(n):] == n): return d
+        # Use the simple version if we can. It has lower memory overhead
+        if d.ndim == 2 and len(n) == 1 and (axes[0] == 1 or axes[0] == -1):
+                return resample_fft_simple(d, n[0])
+        # Perform the fourier transform
+        fd = np.fft.fftn(d, axes=axes)
+        # Frequencies are 0 1 2 ... N/2 (-N)/2 (-N)/2+1 .. -1
+        # Ex 0* 1 2* -1 for n=4 and 0* 1 2 -2 -1 for n=5
+        # To upgrade,   insert (n_new-n_old) zeros after n_old/2
+        # To downgrade, remove (n_old-n_new) values after n_new/2
+        # The idea is simple, but arbitrary dimensionality makes it
+        # complicated.
+        norm = 1.0
+        for ax, nnew in zip(axes, n):
+                ax %= d.ndim
+                nold = d.shape[ax]
+                dn   = nnew-nold
+                if dn > 0:
+                        padvals = np.zeros(fd.shape[:ax]+(dn,)+fd.shape[ax+1:],fd.dtype)
+                        spre  = tuple([slice(None)]*ax+[slice(0,nold//2)]+[slice(None)]*(fd.ndim-ax-1))
+                        spost = tuple([slice(None)]*ax+[slice(nold//2,None)]+[slice(None)]*(fd.ndim-ax-1))
+                        fd = np.concatenate([fd[spre],padvals,fd[spost]],axis=ax)
+                elif dn < 0:
+                        spre  = tuple([slice(None)]*ax+[slice(0,nnew//2)]+[slice(None)]*(fd.ndim-ax-1))
+                        spost = tuple([slice(None)]*ax+[slice(nnew//2-dn,None)]+[slice(None)]*(fd.ndim-ax-1))
+                        fd = np.concatenate([fd[spre],fd[spost]],axis=ax)
+                norm *= float(nnew)/nold
+        # And transform back
+        res  = np.fft.ifftn(fd, axes=axes, norm='backward')
+        del fd
+        res *= norm
+        return res if np.issubdtype(d.dtype, np.complexfloating) else res.real
 
 def resample_fft_simple(d, n, ngroup=100):
-	"""Resample 2d numpy array d via fourier-reshaping along
-	last axis.
+        """Resample 2d numpy array d via fourier-reshaping along
+        last axis.
         This function borrowed from Sigurd Naess' pixell,
         Copyright (c) 2018-2021, Members of the Simons Observatory Collaboration"""
-	nold = d.shape[1]
-	if n == nold: return d
-	res  = np.zeros([d.shape[0],n],dtype=d.dtype)
-	dn   = n-nold
-	for di in range(0, d.shape[0], ngroup):
-		fd = np.fft.fftn(d[di:di+ngroup])
-		if n < nold:
-			fd = np.concatenate([fd[:,:n//2],fd[:,n//2-dn:]],1)
-		else:
-			fd = np.concatenate([fd[:,:nold//2],np.zeros([len(fd),n-nold],fd.dtype),fd[:,nold//2:]],-1)
-		res[di:di+ngroup] = np.fft.ifftn(fd, norm='backward').real
-	del fd
-	res *= float(n)/nold
-	return res
+        nold = d.shape[1]
+        if n == nold: return d
+        res  = np.zeros([d.shape[0],n],dtype=d.dtype)
+        dn   = n-nold
+        for di in range(0, d.shape[0], ngroup):
+                fd = np.fft.fftn(d[di:di+ngroup])
+                if n < nold:
+                        fd = np.concatenate([fd[:,:n//2],fd[:,n//2-dn:]],1)
+                else:
+                        fd = np.concatenate([fd[:,:nold//2],np.zeros([len(fd),n-nold],fd.dtype),fd[:,nold//2:]],-1)
+                res[di:di+ngroup] = np.fft.ifftn(fd, norm='backward').real
+        del fd
+        res *= float(n)/nold
+        return res
 
 def get_newshape_lmax1d(shape, lmax1d, dx_rad, powerOfTwo=False):
     """Get new shape for an array set by 1d-lmax (ie actual lmax will be sqrt(lmax_x^2 + lmax_y^2))"""
@@ -1037,16 +1037,16 @@ class RadialFourierTransform:
         * lrange = [lmin, lmax]: The multipole range to use. Defaults
           to [0.01, 1e6] if no rrange is given.
         * rrange = [rmin, rmax]: The radius range to use if lrange is
-        	not specified, in radians. Example values: [1e-7,10].
-        	Since we don't use spherical geometry r is not limited to 2 pi.
+                not specified, in radians. Example values: [1e-7,10].
+                Since we don't use spherical geometry r is not limited to 2 pi.
         * n: The number of logarithmically equi-spaced points to use
-        	in the given range. Default: 512. The Hankel transform usually
-        	doesn't need many points for good accuracy, and can suffer if
-        	too many points are used.
+                in the given range. Default: 512. The Hankel transform usually
+                doesn't need many points for good accuracy, and can suffer if
+                too many points are used.
         * pad: How many extra points to pad by on each side of the range.
           Padding is useful to get good accuracy in a Hankel transform.
           The transforms this function does will return padded output,
-        	which can be unpadded using the unpad method. Default: 256
+                which can be unpadded using the unpad method. Default: 256
         """
         if lrange is None and rrange is None: lrange = [0.1, 1e7]
         if lrange is None: lrange = [1/rrange[1], 1/rrange[0]]
@@ -1097,8 +1097,8 @@ class RadialFourierTransform:
         values in the padded areas of the output of the transform have
         unreliable values, but they're not cropped automatically to
         allow for round-trip transforms. Example:
-        	r = unpad(r_padded)
-        	r, l, vals = unpad(r_padded, l_padded, vals_padded)"""
+                r = unpad(r_padded)
+                r, l, vals = unpad(r_padded, l_padded, vals_padded)"""
         if self.pad == 0: res = arrs
         else: res = tuple([arr[...,self.pad:-self.pad] for arr in arrs])
         return res[0] if len(arrs) == 1 else res
