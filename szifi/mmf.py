@@ -39,7 +39,7 @@ class cluster_finder:
         self.rank = rank
         self.exp = self.data_file["experiment"]
         self.cosmology = model.cosmological_model(name=self.params_szifi["cosmology"]).cosmology
-
+        self.indices_filter=None
         if self.params_szifi["detection_method"] == "DBSCAN":
             from sklearn.cluster import DBSCAN
 
@@ -156,12 +156,20 @@ class cluster_finder:
             times, ctime = add_time(times, ctime, 't3')
             #Filter input maps in harmonic space
 
-            self.t_obs = maps.filter_tmap(self.t_obs,self.pix,self.params_szifi["lrange"])
-            self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"])
+            [lmin,lmax] = self.params_szifi['lrange']
+            self.indices_filter = np.where((maps.rmap(self.pix).get_ell() < lmin) |  (maps.rmap(self.pix).get_ell() > lmax))
+            self.t_obs = maps.filter_tmap(self.t_obs,self.pix,self.params_szifi["lrange"], indices_filter=self.indices_filter)
+
+            times, ctime = add_time(times, ctime, 'filter_tmap')
+
+            self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"], indices_filter=self.indices_filter)
+
+            times, ctime = add_time(times, ctime, 'filter_tmap')
+
             t_noi_original = self.t_noi
             if self.params_szifi["get_q_true"] == True:
 
-                self.t_true = maps.filter_tmap(self.t_true,self.pix,self.params_szifi["lrange"])
+                self.t_true = maps.filter_tmap(self.t_true,self.pix,self.params_szifi["lrange"], indices_filter=self.indices_filter)
 
             #Initiate loop over iterative noise covariance estimation
 
@@ -185,7 +193,7 @@ class cluster_finder:
                     self.t_noi = maps.diffusive_inpaint_freq(t_noi_original,self.mask_point,self.params_szifi["n_inpaint"])
                     times, ctime = add_time(times, ctime, 'inpaint')
 
-                self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"])
+                self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"], indices_filter=self.indices_filter)
                 times, ctime = add_time(times, ctime, 'filter_tmap')
                 #Estimate channel cross-spectra
 
@@ -419,7 +427,7 @@ class filter_maps:
 
     def __init__(self,t_obs=None,inv_cov=None,pix=None,cosmology=None,theta_500_vec=None,
     params=None,field_id=0,i_it=0,mask_map=None,mask_select_list=None,
-    mask_peak_finding_list=None,rank=0,exp=None,cmmf=None,params_model=None):
+    mask_peak_finding_list=None,rank=0,exp=None,cmmf=None,params_model=None,indices_filter=None):
 
         self.t_obs = t_obs
         self.inv_cov = inv_cov
@@ -437,6 +445,7 @@ class filter_maps:
         self.theta_500_vec = theta_500_vec
         self.exp = exp
         self.cmmf = cmmf
+        self.indices_filter=indices_filter
 
         self.theta_range = [0.,pix.nx*pix.dx,0.,pix.ny*pix.dy]
 
@@ -450,6 +459,7 @@ class filter_maps:
 
             mask_map_t = maps.clone_map_freq(self.mask_map,t_obs.shape[2])
             t_obs = t_obs*mask_map_t
+            t_obs = maps.filter_tmap(t_obs,self.pix,self.params["lrange"], indices_filter=self.indices_filter)
 
         n_theta = len(self.theta_500_vec)
 
@@ -496,14 +506,16 @@ class filter_maps:
 
                     t_tem = t_tem/nfw.get_y_norm(self.params["norm_type"])
                     t_tem_nc = maps.select_freqs(t_tem_nc,self.params["freqs"])
-                    tem_nc = maps.filter_tmap(t_tem_nc,self.pix,self.params["lrange"])/nfw.get_y_norm(self.params["norm_type"])
+                    times, ctime = add_time(times, ctime, 't_tem, select_freqs')
+
+                    tem_nc = maps.filter_tmap(t_tem_nc,self.pix,self.params["lrange"], indices_filter=self.indices_filter)/nfw.get_y_norm(self.params["norm_type"])
+                    times, ctime = add_time(times, ctime, 'filter_tmap')
 
                 t_tem = maps.select_freqs(t_tem,self.params["freqs"])
-                tem = maps.filter_tmap(t_tem,self.pix,self.params["lrange"])
-                times, ctime = add_time(times, ctime, 'filter_tmap')
-                if self.params["apod_type"] == "old":
+                times, ctime = add_time(times, ctime, 'select_freqs')
 
-                    t_obs = maps.filter_tmap(t_obs,self.pix,self.params["lrange"])
+                tem = maps.filter_tmap(t_tem,self.pix,self.params["lrange"], indices_filter=self.indices_filter)
+                times, ctime = add_time(times, ctime, 'filter_tmap')
 
                 q_map,y_map,std = get_mmf_q_map(t_obs,tem,self.inv_cov,self.pix,mmf_type=self.params["mmf_type"],
                 cmmf_prec=self.cmmf,tem_nc=tem_nc)
@@ -566,6 +578,7 @@ class filter_maps:
 
             mask_map_t = maps.clone_map_freq(self.mask_map,t_true.shape[2])
             t_true = t_true*mask_map_t
+            t_true = maps.filter_tmap(t_true,self.pix,self.params['lrange'],indices_filter=self.indices_filter)
 
         n_clus = len(true_catalogue.catalogue["theta_x"])
 
@@ -633,13 +646,9 @@ class filter_maps:
 
 def extract_at_input_value(t_true,inv_cov,pix,beam,M_500,z,cosmology,norm_type,
 theta_x,theta_y,lrange,apod_type=None,mmf_type=None,cmmf_prec=None,
-freqs=None,exp=None,comp_to_calculate=None,profile_type=None):
+freqs=None,exp=None,comp_to_calculate=None,profile_type=None, indices_filter=None):
 
     nfw = model.gnfw(M_500,z,cosmology,type=profile_type)
-
-    if apod_type == "old":
-
-        t_true = maps.filter_tmap(t_true,pix,lrange)
 
     q_opt = np.zeros(len(comp_to_calculate))
     y0_est = np.zeros(len(comp_to_calculate))
@@ -649,8 +658,8 @@ freqs=None,exp=None,comp_to_calculate=None,profile_type=None):
     tem_nc = tem_nc/nfw.get_y_norm(norm_type)
     tem = maps.select_freqs(tem,freqs)
     tem_nc = maps.select_freqs(tem_nc,freqs)
-    tem = maps.filter_tmap(tem,pix,lrange)
-    tem_nc = maps.filter_tmap(tem_nc,pix,lrange)
+    tem = maps.filter_tmap(tem,pix,lrange,indices_filter=indices_filter)
+    tem_nc = maps.filter_tmap(tem_nc,pix,lrange,indices_filter=indices_filter)
 
     for k in range(0,len(comp_to_calculate)):
 

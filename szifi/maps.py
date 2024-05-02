@@ -250,25 +250,25 @@ def get_ifft_f(tmap,pix):
 
     return ret
 
-def filter_fft(map_fft,pix,ell_filter):
+def filter_fft(map_fft,pix,ell_filter, indices_filter=None):
+    if indices_filter is None:
+        [lmin,lmax] = ell_filter
+        indices_filter = np.where((rmap(pix).get_ell() < lmin) |  (rmap(pix).get_ell() > lmax))
 
-    [lmin,lmax] = ell_filter
-    indices = np.where((rmap(pix).get_ell() < lmin) |  (rmap(pix).get_ell() > lmax))
-    map_fft[indices] = 0.
+    map_fft[indices_filter] = 0.
 
     return map_fft
 
-def filter_fft_f(map_fft,pix,ell_filter):
+def filter_fft_f(map_fft,pix,ell_filter,indices_filter=None):
 
     for i in range(0,map_fft.shape[2]):
 
-        map_fft[:,:,i] = filter_fft(map_fft[:,:,i],pix,ell_filter)
+        map_fft[:,:,i] = filter_fft(map_fft[:,:,i],pix,ell_filter,indices_filter=indices_filter)
 
     return map_fft
 
-def filter_tmap(tmap,pix,ell_filter):
-
-    return get_ifft_f(filter_fft_f(get_fft_f(tmap,pix),pix,ell_filter),pix).real
+def filter_tmap(tmap,pix,ell_filter,indices_filter=None):
+    return get_ifft_f(filter_fft_f(get_fft_f(tmap,pix),pix,ell_filter,indices_filter=indices_filter),pix).real
 
 def filter_map(map,pix,ell_filter):
 
