@@ -170,6 +170,7 @@ class cluster_finder:
             if self.params_szifi["get_q_true"] == True:
 
                 self.t_true = maps.filter_tmap(self.t_true,self.pix,self.params_szifi["lrange"], indices_filter=self.indices_filter)
+                times, ctime = add_time(times, ctime, 'filter_tmap')
 
             #Initiate loop over iterative noise covariance estimation
 
@@ -394,9 +395,9 @@ class cluster_finder:
             self.results_dict[field_id] = self.results
         times, ctime = add_time(times, ctime0, 'total')
         if timetype == 'process':
-            timename = 'timing1.pkl'
+            timename = 'timing_so_scipy.pkl'
         elif timetype == 'wall':
-            timename = 'timing_wall1.pkl'
+            timename = 'timing_wall_so.pkl'
         with open(timename, 'wb') as fil:
             pickle.dump(times, fil)
         print("Real time elapsed: ", time.time()-time0)
@@ -507,6 +508,8 @@ class filter_maps:
                         sed=False)
                         t_tem_norm = None
 
+                        times, ctime = add_time(times, ctime, 'nfw.get_t_map_convolved')
+
                     elif self.params["mmf_type"] == "spectrally_constrained" and self.params["cmmf_type"] == "general":
 
                         theta_misc = maps.get_theta_misc(theta_cart,self.pix)
@@ -518,8 +521,11 @@ class filter_maps:
                         get_nc=True,
                         sed=False)
 
+                        times, ctime = add_time(times, ctime, 'nfw.get_t_map_convolved')
+
                         t_tem_norm = t_tem_norm/nfw.get_y_norm(self.params["norm_type"])
                         t_tem_norm = maps.filter_tmap(t_tem_norm,self.pix,self.params["lrange"], indices_filter=self.indices_filter)
+                        times, ctime = add_time(times, ctime, 'filter_tmap')
 
                     t_tem = t_tem/nfw.get_y_norm(self.params["norm_type"])
 
@@ -824,14 +830,19 @@ mmf_type="standard",cmmf_prec=None,comp=0,tem_norm=None):
 
         tem_norm = maps.get_tmap_times_fvec(tem_norm,cmmf_prec.a_matrix[:,comp]).real #new line
 
+    ctime=get_time()
+
     for i in range(n_freqs):
 
         y = sg.fftconvolve(tmap[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
+
+        #y = maps.fftconvolve(tmap[:,:,i] * xmask, filter[:,:,i]) * pix.dx * pix.dy ## Check you use the right function
+
         #norm = sg.fftconvolve(tem_norm[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
 
         y_map += y
         #norm_map += norm
-
+    times, ctime = add_time(times, ctime, 'fftconvolve step')
     norm = np.sum(tem_norm*filter)*pix.dx*pix.dy
 
     #norm = np.max(norm_map)
