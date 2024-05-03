@@ -214,6 +214,9 @@ def get_ifft(map_value,pix):
 
     return np.fft.ifft2(map_value)*np.sqrt((pix.nx*pix.ny)/(pix.dx*pix.dy)) #same convention as quicklens
 
+# def fftconvolve(map1, map2, pix=None):
+#     return np.fft.fftshift(np.fft.ifft2(np.fft.fft2(map1) * np.fft.fft2(map2)).real)
+
 def fftconvolve(map1,map2,pix):
 
     ret = get_ifft(get_fft(map1,pix)*get_fft(map2,pix),pix).real
@@ -229,7 +232,6 @@ def fftconvolve(map1,map2,pix):
 
 
 def get_fft_f(tmap,pix):
-
     n_freq = tmap.shape[2]
     ret = np.zeros(tmap.shape,dtype=complex)
 
@@ -240,7 +242,6 @@ def get_fft_f(tmap,pix):
     return ret
 
 def get_ifft_f(tmap,pix):
-
     n_freq = tmap.shape[2]
     ret = np.zeros(tmap.shape,dtype=complex)
 
@@ -645,6 +646,12 @@ def clone_map_freq(map1,n_freq):
         ret[:,:,i] = map1
 
     return ret
+def multiply_t(map1, map2):
+    """Add an axis to 'map1' and multiply it by 'map2'"""
+    if map1.ndim > map2.ndim:
+        map1, map2 = map2, map1
+    imap = np.expand_dims(map1, map1.ndim) # Add a len-1 axis for compatible shapes
+    return imap * map2
 
 def get_mask_apod(pix,alpha=0.1):
 

@@ -87,16 +87,17 @@ class cluster_finder:
             print("")
 
             #Gather input data
-            self.t_obs = self.data_file["t_obs"][field_id] #in muK
-            self.t_noi = self.data_file["t_noi"][field_id] #in muK
 
-            self.mask_point = self.data_file["mask_point"][field_id]
-            self.mask_ps = self.data_file["mask_ps"][field_id]
-            self.mask_select = self.data_file["mask_select"][field_id]
-            self.mask_select_no_tile = self.data_file["mask_select_no_tile"][field_id]
-            self.mask_map = self.data_file["mask_map"][field_id]
-            self.mask_peak_finding_no_tile = self.data_file["mask_peak_finding_no_tile"][field_id]
-            self.mask_peak_finding = self.data_file["mask_peak_finding"][field_id]
+            self.t_obs = utils.extract(self.data_file, "t_obs", field_id) #in muK
+            self.t_noi = utils.extract(self.data_file, "t_noi", field_id) #in muK
+
+            self.mask_point = utils.extract(self.data_file, "mask_point", field_id)
+            self.mask_ps = utils.extract(self.data_file, "mask_ps", field_id)
+            self.mask_select = utils.extract(self.data_file, "mask_select", field_id)
+            self.mask_select_no_tile = utils.extract(self.data_file, "mask_select_no_tile", field_id)
+            self.mask_map = utils.extract(self.data_file, "mask_map", field_id)
+            self.mask_peak_finding_no_tile = utils.extract(self.data_file, "mask_peak_finding_no_tile", field_id)
+            self.mask_peak_finding = utils.extract(self.data_file, "mask_peak_finding", field_id)
 
             self.dx = self.data_file["dx_arcmin"][field_id]/60./180.*np.pi
             self.nx = self.data_file["nx"][field_id]
@@ -114,9 +115,8 @@ class cluster_finder:
             #Select frequency channels to use
             self.t_obs = maps.select_freqs(self.t_obs,self.params_szifi["freqs"])
             self.t_noi = maps.select_freqs(self.t_noi,self.params_szifi["freqs"])
-
             if self.params_szifi["get_q_true"] == True:
-                self.t_true = self.data_file["t_true"][field_id]
+                self.t_true = utils.extract(self.data_file, "t_true", field_id)
                 self.t_true = maps.select_freqs(self.t_true,self.params_szifi["freqs"])
 
             times, ctime = add_time(times, ctime, 'load data')
@@ -127,7 +127,7 @@ class cluster_finder:
                 self.t_obs = maps.diffusive_inpaint_freq(self.t_obs,self.mask_point,self.params_szifi["n_inpaint"])
 
             times, ctime = add_time(times, ctime, 'inpaint')
-            mask_ps_0 = self.mask_ps
+            # mask_ps_0 = self.mask_ps
             mask_point_0 = self.mask_point
 
             #Initialise results class
@@ -146,12 +146,11 @@ class cluster_finder:
 
             if self.params_szifi["apod_type"] == "new":
 
-                mask_map_t = maps.clone_map_freq(self.mask_map,self.t_obs.shape[2])
-                self.t_obs = self.t_obs*mask_map_t
+                self.t_obs = maps.multiply_t(self.mask_map, self.t_obs)
 
                 if self.params_szifi["get_q_true"] == True:
 
-                    self.t_true = self.t_true*mask_map_t
+                    self.t_true = maps.multiply_t(self.mask_map, self.t_true)
 
             times, ctime = add_time(times, ctime, 't3')
             #Filter input maps in harmonic space
@@ -181,7 +180,7 @@ class cluster_finder:
 
                     print("Noise it",i)
 
-                if np.array_equal(self.mask_select,np.zeros((self.pix.nx,self.pix.ny))):
+                if not np.any(self.mask_select):
 
                     break
 
@@ -240,7 +239,7 @@ class cluster_finder:
 
                 #Filter covariance matrix
 
-                self.inv_cov = maps.filter_cov(self.inv_cov,self.pix,self.params_szifi["lrange"])
+                #self.inv_cov = maps.filter_cov(self.inv_cov,self.pix,self.params_szifi["lrange"])
                 times, ctime = add_time(times, ctime, 'filter cov')
                 #Compute weights for constrained MMF
 
@@ -451,15 +450,14 @@ class filter_maps:
         self.theta_range = [0.,pix.nx*pix.dx,0.,pix.ny*pix.dy]
 
     #Find detections blindly
-
+    @profile
     def find_clusters(self):
         global times
         t_obs = self.t_obs
 
         if self.params["apod_type"] == "old":
 
-            mask_map_t = maps.clone_map_freq(self.mask_map,t_obs.shape[2])
-            t_obs = t_obs*mask_map_t
+            t_obs = maps.multiply_t(self.mask_map, t_obs)
             t_obs = maps.filter_tmap(t_obs,self.pix,self.params["lrange"], indices_filter=self.indices_filter)
 
         n_theta = len(self.theta_500_vec)
@@ -593,8 +591,7 @@ class filter_maps:
 
         if self.params["apod_type"] == "old":
 
-            mask_map_t = maps.clone_map_freq(self.mask_map,t_true.shape[2])
-            t_true = t_true*mask_map_t
+            t_true = maps.multiply_t(self.mask_map, t_true)
             t_true = maps.filter_tmap(t_true,self.pix,self.params['lrange'],indices_filter=self.indices_filter)
 
         n_clus = len(true_catalogue.catalogue["theta_x"])
