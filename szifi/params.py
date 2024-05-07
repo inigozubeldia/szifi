@@ -37,8 +37,12 @@ params_szifi_default = {
 "theta_find": "input",
 "detection_method": "maxima",
 "apod_type": "old",
+
 "path": "/global/homes/r/rosenber/Programs/szifi/",
 "path_data": "/global/homes/r/rosenber/Programs/szifi/data/",
+"save_and_load_template": True,
+"path_template": "/global/homes/r/rosenber/Programs/szifi/data/tem/",
+
 
 "mmf_type": "standard", #"standard" or "spectrally_constrained"
 "cmmf_type": "one_dep", #"one_dep" or "general". If only one SED is deprojected, use "one_dep" (faster); they are mathematically the same

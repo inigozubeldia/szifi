@@ -124,6 +124,7 @@ class cluster_finder:
             #Inpaint point sources
 
             if self.params_szifi["inpaint"] == True:
+
                 self.t_obs = maps.diffusive_inpaint_freq(self.t_obs,self.mask_point,self.params_szifi["n_inpaint"])
 
             times, ctime = add_time(times, ctime, 'inpaint')
@@ -198,11 +199,16 @@ class cluster_finder:
                 #Estimate channel cross-spectra
 
                 if self.params_szifi["estimate_spec"] == "estimate":
+
                     lmax1d = self.params_szifi["powspec_lmax1d"]
                     new_shape = self.params_szifi["powspec_new_shape"]
+
                     if lmax1d is not None:
+
                         if new_shape is not None:
+
                             raise ValueError("Only one of powspec_lmax1d or powspec_new_shape can be specified")
+
                         new_shape = maps.get_newshape_lmax1d((self.pix.nx, self.pix.ny), lmax1d, self.pix.dx)
 
                     bin_fac = self.params_szifi["powspec_bin_fac"]
@@ -450,7 +456,7 @@ class filter_maps:
         self.theta_range = [0.,pix.nx*pix.dx,0.,pix.ny*pix.dy]
 
     #Find detections blindly
-    @profile
+    #@profile
     def find_clusters(self):
         global times
         t_obs = self.t_obs
@@ -462,39 +468,34 @@ class filter_maps:
 
         n_theta = len(self.theta_500_vec)
 
-        n_subgrid = 1
-        find_subgrid = False
-
-        subgrid_ix = [0.,0.,0.5,0.5]
-        subgrid_jx = [0.,0.5,0.,0.5]
-
-        self.q_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta,n_subgrid))
-        self.y_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta,n_subgrid))
+        self.q_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta))
+        self.y_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta))
         self.sigma_vec = np.zeros(n_theta)
 
-        for k in range(0,n_subgrid):
+        for j in range(0,n_theta):
 
-            for j in range(0,n_theta):
+            if self.rank == 0:
 
-                if self.rank == 0:
+                print("Theta",j,self.theta_500_vec[j])
 
-                    print("Theta",j,self.theta_500_vec[j])
+            ctime=get_time()
+            if self.params["save_and_load_template"] == False or (self.params["save_and_load_template"] == True and self.i_it == 0):
 
                 if self.params_model["profile_type"] == "point":
 
                     ps = model.point_source(self.exp,beam_type=self.params["beam"])
                     t_tem = ps.get_t_map_convolved(self.pix)
+                    t_tem_norm = None
 
                 elif self.params_model["profile_type"] == "arnaud":
-                    ctime=get_time()
                     z = 0.2
                     M_500 = model.get_m_500(self.theta_500_vec[j],z,self.cosmology)
                     nfw = model.gnfw(M_500,z,self.cosmology,
                     type=self.params_model["profile_type"])
                     times, ctime = add_time(times, ctime, 'get model')
 
-                    theta_cart = [(0.5*self.pix.nx+subgrid_ix[k])*self.pix.dx,
-                    (0.5*self.pix.nx+subgrid_jx[k])*self.pix.dx]
+                    theta_cart = [(0.5*self.pix.nx)*self.pix.dx,
+                    (0.5*self.pix.nx)*self.pix.dx]
 
                     if self.params["mmf_type"] == "standard" or (self.params["mmf_type"] == "spectrally_constrained" and self.params["cmmf_type"] == "one_dep"):
 
@@ -530,21 +531,35 @@ class filter_maps:
                 tem = maps.filter_tmap(t_tem,self.pix,self.params["lrange"], indices_filter=self.indices_filter)
                 times, ctime = add_time(times, ctime, 'filter_tmap')
 
-                q_map,y_map,std = get_mmf_q_map(t_obs,tem,self.inv_cov,self.pix,mmf_type=self.params["mmf_type"],
-                cmmf_prec=self.cmmf,tem_norm=t_tem_norm)
+                if self.params["save_and_load_template"] == True:
 
-                times, ctime = add_time(times, ctime, 'get_mmf_q_map')
+                    np.save(self.params["path_template"] + "tem_" + str(j) + ".npy",tem)
+                    np.save(self.params["path_template"] + "tem_norm_" + str(j) + ".npy",t_tem_norm)
 
-                if self.params["save_snr_maps"] == True:
+                    print("Template saved")
+                    times, ctime = add_time(times,  ctime, 'save template')
 
-                    np.save(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_list[0])
+            elif self.params["save_and_load_template"] == True and self.i_it > 0:
 
-                self.q_tensor[:,:,j,k] = q_map
-                self.y_tensor[:,:,j,k] = y_map
+                tem = np.load(self.params["path_template"] + "tem_" + str(j) + ".npy",allow_pickle=True)[()]
+                t_tem_norm = np.load(self.params["path_template"] + "tem_norm_" + str(j) + ".npy",allow_pickle=True)[()]
 
-                if k == 0:
+                print("Template loaded")
+                times, ctime = add_time(times, ctime, 'load template')
 
-                    self.sigma_vec[j] = std
+            q_map,y_map,std = get_mmf_q_map(t_obs,tem,self.inv_cov,self.pix,mmf_type=self.params["mmf_type"],
+            cmmf_prec=self.cmmf,tem_norm=t_tem_norm)
+
+            times, ctime = add_time(times, ctime, 'get_mmf_q_map')
+
+
+            if self.params["save_snr_maps"] == True:
+
+                np.save(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_list[0])
+
+            self.q_tensor[:,:,j] = q_map
+            self.y_tensor[:,:,j] = y_map
+            self.sigma_vec[j] = std
 
         n_mask_select = len(self.mask_select_list)
         self.results_list = []
@@ -714,15 +729,13 @@ def apply_mask_peak_finding(tensor,mask):
 
     for i in range(0,tensor.shape[2]):
 
-        for j in range(0,tensor.shape[3]):
-
-            tensor[:,:,i,j] *= mask
+        tensor[:,:,i] *= mask
 
     return tensor
 
 #Engine for cluster finding
 
-def make_detections(q_tensor,q_th,pix,find_subgrid=False,detection_method="maxima"):
+def make_detections(q_tensor,q_th,pix,detection_method="maxima"):
 
     indices = np.where(q_tensor > q_th)
 
@@ -730,7 +743,6 @@ def make_detections(q_tensor,q_th,pix,find_subgrid=False,detection_method="maxim
     coords[:,0] = indices[0]
     coords[:,1] = indices[1]
     theta_coord = np.array(indices[2])
-    subgrid_coord = np.array(indices[3])
 
     if coords.shape[0] == 0:
 
@@ -748,24 +760,22 @@ def make_detections(q_tensor,q_th,pix,find_subgrid=False,detection_method="maxim
             i_opt_vec = np.zeros(n_clusters,dtype=int)
             j_opt_vec = np.zeros(n_clusters,dtype=int)
             theta_opt_vec = np.zeros(n_clusters,dtype=int)
-            subgrid_vec = np.zeros(n_clusters,dtype=int)
 
             for i in range(0,n_clusters):
 
                 indices = np.where(labels==i)
-                q_tensor_select = q_tensor[coords[:,0][indices],coords[:,1][indices],theta_coord[indices],subgrid_coord[indices]]
+                q_tensor_select = q_tensor[coords[:,0][indices],coords[:,1][indices],theta_coord[indices]]
                 opt_index = np.argmax(q_tensor_select)
                 i_opt_vec[i]  = coords[:,0][indices][opt_index]
                 j_opt_vec[i] = coords[:,1][indices][opt_index]
                 theta_opt_vec[i] = theta_coord[indices][opt_index]
-                subgrid_vec[i] = subgrid_coord[indices][opt_index]
                 q_opt = q_tensor_select[opt_index]
 
-            ret = (i_opt_vec,j_opt_vec,theta_opt_vec,subgrid_vec)
+            ret = (i_opt_vec,j_opt_vec,theta_opt_vec)
 
         elif detection_method == "maxima":
 
-            q_tensor_maxima = q_tensor[:,:,:,0].copy()
+            q_tensor_maxima = q_tensor[:,:,:].copy()
             q_tensor_maxima[np.where(q_tensor_maxima < q_th)] = 0.
 
             maxs_idx = get_maxima(get_maxima_mask(q_tensor_maxima))
@@ -773,9 +783,8 @@ def make_detections(q_tensor,q_th,pix,find_subgrid=False,detection_method="maxim
             i = np.array(maxs_idx[:,0]).astype(int)
             j = np.array(maxs_idx[:,1]).astype(int)
             theta = np.array(maxs_idx[:,2]).astype(int)
-            subgrid = np.array(np.zeros(len(i))).astype(int)
 
-            ret = (i,j,theta,subgrid)
+            ret = (i,j,theta)
 
     return ret
 
