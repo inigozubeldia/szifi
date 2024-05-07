@@ -235,7 +235,7 @@ class cluster_finder:
                     times, ctime = add_time(times, ctime, 'cspec.get_cross_spec()')
                     self.inv_cov = self.cspec.get_inv_cov(self.pix,interp_type=self.params_szifi["interp_type"], bin_fac=bin_fac, new_shape=new_shape)
                     times, ctime = add_time(times, ctime, 'get_inv_cov')
-                    self.inv_cov = maps.expand_matrix(self.inv_cov, (self.pix.nx, self.pix.ny))
+                    #self.inv_cov_exp = maps.expand_matrix(self.inv_cov, (self.pix.nx, self.pix.ny))
                     times, ctime = add_time(times, ctime, 'expand_matrix(inv_cov)')
                 #If power spectrum is theoretically predicted - testing not up to date, do not use
 
@@ -821,8 +821,11 @@ mmf_type="standard",cmmf_prec=None,comp=0,tem_norm=None):
 
     tem_fft = maps.get_fft_f(tem,pix)
 
+    tem_fft = maps.reshape_ell_matrix(tem_fft, inv_cov.shape[:2])
     filter_fft = get_tem_conv_fft(pix,tem_fft,inv_cov,mmf_type=mmf_type,
     cmmf_prec=cmmf_prec,comp=comp)
+    del tem_fft
+    filter_fft = maps.reshape_ell_matrix(filter_fft, (pix.nx, pix.ny))
 
     filter = maps.get_ifft_f(filter_fft,pix).real
     times, ctime = add_time(times, ctime, 'get_mmf_q_map:ffts')

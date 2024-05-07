@@ -494,10 +494,11 @@ def degrade_pix(pix, new_shape):
     deg_pix = pixel(nx, new_dx, ny, new_dy)
     return deg_pix
 
-def expand_matrix(arr, new_shape, axes=[0,1]):
+
+def reshape_ell_matrix(arr, new_shape, axes=[0,1]):
     """
-    Zero fill arr in the given axes to reach new_shape
-    This splits arr into quadrants and adds zeros in the central cross; this is how to expand inv_cov or anything shaped like ell
+    Zero fill or cut arr in the given axes to reach new_shape
+    This splits arr into quadrants and adds zeros (or removes vals) in the central cross; this is how to expand inv_cov or anything shaped like ell
     arr: np.ndarr
     new_shape: tuple, new shape of *the axes to be expanded only*
     This function adapted from pixell.resample.resample_fft
@@ -509,13 +510,16 @@ def expand_matrix(arr, new_shape, axes=[0,1]):
         nold = arr.shape[ax]
         dn = nnew - nold
         if dn < 0:
-            raise ValueError(f"new shape {nnew} smaller than old_shape {nold} for axis {ax}")
+            spre  = tuple([slice(None)]*ax+[slice(0,nnew//2)]+[slice(None)]*(arr.ndim-ax-1))
+            spost = tuple([slice(None)]*ax+[slice(nnew//2-dn,None)]+[slice(None)]*(arr.ndim-ax-1))
+            arr = np.concatenate([arr[spre], arr[spost]], axis=ax)
         elif dn == 0:
             continue
-        padvals = np.zeros(arr.shape[:ax]+(dn,)+arr.shape[ax+1:],arr.dtype)
-        spre  = tuple([slice(None)]*ax+[slice(0,nold//2)]+[slice(None)]*(arr.ndim-ax-1))
-        spost = tuple([slice(None)]*ax+[slice(nold//2,None)]+[slice(None)]*(arr.ndim-ax-1))
-        arr = np.concatenate([arr[spre],padvals,arr[spost]],axis=ax)
+        else:
+            padvals = np.zeros(arr.shape[:ax]+(dn,)+arr.shape[ax+1:],arr.dtype)
+            spre  = tuple([slice(None)]*ax+[slice(0,nold//2)]+[slice(None)]*(arr.ndim-ax-1))
+            spost = tuple([slice(None)]*ax+[slice(nold//2,None)]+[slice(None)]*(arr.ndim-ax-1))
+            arr = np.concatenate([arr[spre],padvals,arr[spost]],axis=ax)
     return arr
 
 def nl(noise_uK_arcmin, fwhm_arcmin, lmax):
