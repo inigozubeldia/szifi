@@ -51,6 +51,7 @@ class cluster_finder:
         if self.params_szifi["deproject_cib"] is not None:
             get_a_matrix_cib(self.params_szifi,self.params_model,self.data_file)
 
+    @profile
     def find_clusters(self):
         global times
         time0 = time.time()
@@ -456,7 +457,7 @@ class filter_maps:
         self.theta_range = [0.,pix.nx*pix.dx,0.,pix.ny*pix.dy]
 
     #Find detections blindly
-    #@profile
+    @profile
     def find_clusters(self):
         global times
         t_obs = self.t_obs

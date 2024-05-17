@@ -7,60 +7,62 @@ import pylab as pl
 #has already been calculated (see get_coupling_matrix.py)
 
 #Set parameters
+@profile
+def main():
+    params_szifi = szifi.params_szifi_so
+    params_data = szifi.params_data_so
+    params_model = szifi.params_model_default
 
-params_szifi = szifi.params_szifi_so
-params_data = szifi.params_data_so
-params_model = szifi.params_model_default
+    lmax1d = 10000
+    #method = 'sht10k'
+    #method = 'sht20k'
+    method = 'spline'
 
-lmax1d = 10000
-#method = 'sht10k'
-#method = 'sht20k'
-method = 'spline'
+    cat_fn = f'tile273_lmax{lmax1d}_{method}_cat.pkl'
+    bin_fac=4
+    params_szifi["powspec_lmax1d"] = lmax1d
+    params_szifi["powspec_bin_fac"] = bin_fac
+    #Input data
+    # params_szifi['compute_coupling_matrix'] = True
+    # params_szifi['save_coupling_matrix'] = True
+    params_data["field_ids"] = [273]
+    data = szifi.input_data(params_szifi=params_szifi,params_data=params_data)
 
-cat_fn = f'tile273_lmax{lmax1d}_{method}_cat.pkl'
-bin_fac=4
-params_szifi["powspec_lmax1d"] = lmax1d
-params_szifi["powspec_bin_fac"] = bin_fac
-#Input data
-# params_szifi['compute_coupling_matrix'] = True
-# params_szifi['save_coupling_matrix'] = True
-params_data["field_ids"] = [273]
-data = szifi.input_data(params_szifi=params_szifi,params_data=params_data)
+    #Find clusters
 
-#Find clusters
+    cluster_finder = szifi.cluster_finder(params_szifi=params_szifi,params_model=params_model,data_file=data,rank=0)
+    cluster_finder.find_clusters()
 
-cluster_finder = szifi.cluster_finder(params_szifi=params_szifi,params_model=params_model,data_file=data,rank=0)
-cluster_finder.find_clusters()
+    #Retrieve results
 
-#Retrieve results
+    results = cluster_finder.results_dict
 
-results = cluster_finder.results_dict
+    detection_processor = szifi.detection_processor(results,params_szifi)
 
-detection_processor = szifi.detection_processor(results,params_szifi)
+    catalogue_obs_noit = detection_processor.results.catalogues["catalogue_find_0"]
+    catalogue_obs_it = detection_processor.results.catalogues["catalogue_find_1"]
 
-catalogue_obs_noit = detection_processor.results.catalogues["catalogue_find_0"]
-catalogue_obs_it = detection_processor.results.catalogues["catalogue_find_1"]
+    #Postprocess detections
 
-#Postprocess detections
+    #Reimpose threshold
 
-#Reimpose threshold
+    q_th_final = 5.
 
-q_th_final = 5.
+    catalogue_obs_noit = szifi.get_catalogue_q_th(catalogue_obs_noit,q_th_final)
+    catalogue_obs_it = szifi.get_catalogue_q_th(catalogue_obs_it,q_th_final)
 
-catalogue_obs_noit = szifi.get_catalogue_q_th(catalogue_obs_noit,q_th_final)
-catalogue_obs_it = szifi.get_catalogue_q_th(catalogue_obs_it,q_th_final)
+    #Merge catalogues of all fields
 
-#Merge catalogues of all fields
+    radius_arcmin = 10. #merging radius in arcmin
 
-radius_arcmin = 10. #merging radius in arcmin
+    catalogue_obs_noit = szifi.merge_detections(catalogue_obs_noit,radius_arcmin=radius_arcmin,return_merge_flag=True,mode="fof")
+    catalogue_obs_it = szifi.merge_detections(catalogue_obs_it,radius_arcmin=radius_arcmin,return_merge_flag=True,mode="fof")
 
-catalogue_obs_noit = szifi.merge_detections(catalogue_obs_noit,radius_arcmin=radius_arcmin,return_merge_flag=True,mode="fof")
-catalogue_obs_it = szifi.merge_detections(catalogue_obs_it,radius_arcmin=radius_arcmin,return_merge_flag=True,mode="fof")
+    # import pickle
+    # with open(cat_fn, 'wb') as fil:
+    #     pickle.dump([catalogue_obs_noit, catalogue_obs_it], fil)
 
-import pickle
-with open(cat_fn, 'wb') as fil:
-    pickle.dump([catalogue_obs_noit, catalogue_obs_it], fil)
-
+main()
 # #Some plots
 
 # pl.hist(catalogue_obs_it.catalogue["q_opt"],color="tab:blue",label="Iterative")
