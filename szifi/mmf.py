@@ -51,7 +51,7 @@ class cluster_finder:
         if self.params_szifi["deproject_cib"] is not None:
             get_a_matrix_cib(self.params_szifi,self.params_model,self.data_file)
 
-    @profile
+    #@profile
     def find_clusters(self):
         global times
         time0 = time.time()
@@ -457,7 +457,7 @@ class filter_maps:
         self.theta_range = [0.,pix.nx*pix.dx,0.,pix.ny*pix.dy]
 
     #Find detections blindly
-    @profile
+    #@profile
     def find_clusters(self):
         global times
         t_obs = self.t_obs
@@ -822,11 +822,9 @@ mmf_type="standard",cmmf_prec=None,comp=0,tem_norm=None):
 
     tem_fft = maps.get_fft_f(tem,pix)
 
-    tem_fft = maps.reshape_ell_matrix(tem_fft, inv_cov.shape[:2])
     filter_fft = get_tem_conv_fft(pix,tem_fft,inv_cov,mmf_type=mmf_type,
     cmmf_prec=cmmf_prec,comp=comp)
     del tem_fft
-    filter_fft = maps.reshape_ell_matrix(filter_fft, (pix.nx, pix.ny))
 
     filter = maps.get_ifft_f(filter_fft,pix).real
     times, ctime = add_time(times, ctime, 'get_mmf_q_map:ffts')
@@ -866,6 +864,8 @@ mmf_type="standard",cmmf_prec=None,comp=0,tem_norm=None):
 
 def get_tem_conv_fft(pix_tem,tem_fft,inv_cov,mmf_type="standard",cmmf_prec=None,comp=0):
 
+    tem_fft = maps.reshape_ell_matrix(tem_fft, inv_cov.shape[:2]) # Match to cut inv_cov
+
     if mmf_type == "standard":
 
         tem_fft = maps.get_tmap_times_fvec(tem_fft,cmmf_prec.a_matrix[:,comp]) #new line
@@ -892,7 +892,7 @@ def get_tem_conv_fft(pix_tem,tem_fft,inv_cov,mmf_type="standard",cmmf_prec=None,
             filter_fft = filter_fft_0*tem_fft
 
     filter_fft[np.isnan(filter_fft)] = 0.
-
+    filter_fft = maps.reshape_ell_matrix(filter_fft, (pix_tem.nx, pix_tem.ny)) # Expand back to expected shape
     return filter_fft
 
 #Class to compute weights for spectrally constrained MMF
@@ -906,13 +906,12 @@ class scmmf_precomputation:
 
         self.cmmf_type = cmmf_type
         self.a_matrix = a_matrix
-
         if mask is None:
 
             mask = np.ones((pix.nx,pix.ny,len(freqs)))
 
         if self.cmmf_type == "one_dep" and mmf_type == "spectrally_constrained":
-
+            print("ONE_DEP")
             self.sed_a = a_matrix[:,0][freqs]
             self.sed_b = a_matrix[:,1][freqs]
 
@@ -920,17 +919,22 @@ class scmmf_precomputation:
             a_map_fft = maps.get_tmap_times_fvec(a_map_fft,self.sed_a)
 
             a_map_fft = maps.get_map_convolved_fft(a_map_fft,pix,freqs,beam_type,mask,lrange,exp)
+            # TODO: More efficient to do next line earlier, but requires modifications to the functions in maps
+            a_map_fft = maps.reshape_ell_matrix(a_map_fft, inv_cov.shape[:2]) # Cut to correct lrange
 
             b_map_fft = np.ones((pix.nx,pix.nx,len(freqs)))
             b_map_fft = maps.get_tmap_times_fvec(b_map_fft,self.sed_b)
 
             b_map_fft = maps.get_map_convolved_fft(b_map_fft,pix,freqs,beam_type,mask,lrange,exp)
+            b_map_fft = maps.reshape_ell_matrix(b_map_fft, inv_cov.shape[:2])
 
             self.a_dot_b = utils.get_inv_cov_dot(np.conjugate(a_map_fft),inv_cov,b_map_fft)
             self.b_dot_b = utils.get_inv_cov_dot(np.conjugate(b_map_fft),inv_cov,b_map_fft)
+            del a_map_fft
+            del b_map_fft
 
         elif self.cmmf_type == "general" and mmf_type == "spectrally_constrained":
-
+            print("GENERAL")
             #a_matrix is f x c matrix (f number of frequencies, c number of components, 1st SZ, rest to deproject)
 
             a_matrix_fft = np.zeros((pix.nx,pix.nx,len(freqs),self.a_matrix.shape[1]))
@@ -941,24 +945,28 @@ class scmmf_precomputation:
                 a_matrix_fft_i = maps.get_tmap_times_fvec(a_matrix_fft_i,self.a_matrix[freqs,i])
                 a_matrix_fft[:,:,:,i] = maps.get_map_convolved_fft(a_matrix_fft_i,pix,freqs,beam_type,mask,lrange,exp)
                 #a_matrix_fft[:,:,:,i] = a_matrix_fft_i
+            del a_matrix_fft_i
 
-            self.a_matrix_fft = a_matrix_fft
+            a_matrix_fft = maps.reshape_ell_matrix(a_matrix_fft, inv_cov.shape[:2])
+            #self.a_matrix_fft = a_matrix_fft
 
             pre = np.einsum('abcd,abde->abce',inv_cov,a_matrix_fft)
             dot = utils.invert_cov(np.einsum('abdc,abde->abce',a_matrix_fft,pre))
-            self.W = np.einsum('abcd,abed->abce',dot,pre)
+            del a_matrix_fft
+            W = np.einsum('abcd,abed->abce',dot,pre)
             cov = utils.invert_cov(inv_cov)
 
-            self.w_list = []
-            self.sigma_y_list = []
+            # self.w_list = []
+            # self.sigma_y_list = []
             self.w_norm_list = []
 
             for i in range(0,len(comp_to_calculate)):
 
-                e_map = np.zeros((pix.nx,pix.nx,self.a_matrix.shape[1]))
-                e_map[:,:,comp_to_calculate[i]] = 1.
+                # e_map = np.zeros((W.shape[0],W.shape[1],self.a_matrix.shape[1]))
+                # e_map[:,:,comp_to_calculate[i]] = 1.
 
-                w = np.einsum('ija,ijab->ijb',e_map,self.W)
+                # w = np.einsum('ija,ijab->ijb',e_map,W)
+                w = W[:,:,comp_to_calculate[i]]
 
                 sigma_y = utils.get_inv_cov_dot(np.conjugate(w),cov,w)
 
@@ -968,8 +976,8 @@ class scmmf_precomputation:
 
                     w_norm[:,:,i] = w[:,:,i]/sigma_y
 
-                self.w_list.append(w)
-                self.sigma_y_list.append(sigma_y)
+                # self.w_list.append(w)
+                # self.sigma_y_list.append(sigma_y)
                 self.w_norm_list.append(w_norm)
 
         elif mmf_type == "standard":
