@@ -109,7 +109,6 @@ class cluster_finder:
 
             else:
                 self.coupling_matrix_name = None
-
             if self.params_szifi["extraction_mode"] == "fixed":
                 self.catalogue_fixed = self.data_file["catalogue_input"][field_id]
 
@@ -119,11 +118,9 @@ class cluster_finder:
             if self.params_szifi["get_q_true"] == True:
                 self.t_true = utils.extract(self.data_file, "t_true", field_id)
                 self.t_true = maps.select_freqs(self.t_true,self.params_szifi["freqs"])
-
             times, ctime = add_time(times, ctime, 'load data')
 
             #Inpaint point sources
-
             if self.params_szifi["inpaint"] == True:
 
                 self.t_obs = maps.diffusive_inpaint_freq(self.t_obs,self.mask_point,self.params_szifi["n_inpaint"])
@@ -141,7 +138,7 @@ class cluster_finder:
 
             #Initialise cluster masking (if iterative noise covariance estimation is required)
 
-            mask_cluster = np.ones((self.pix.nx,self.pix.ny))
+            mask_cluster = np.ones((self.pix.nx,self.pix.ny), dtype=self.t_obs.dtype)
             clusters_masked_old = cat.cluster_catalogue()
 
             #Apodise (except t_noise, which is apodised in the power spectra estimation functions)
@@ -158,7 +155,7 @@ class cluster_finder:
             #Filter input maps in harmonic space
 
             [lmin,lmax] = self.params_szifi['lrange']
-            self.indices_filter = np.where((maps.rmap(self.pix).get_ell() < lmin) |  (maps.rmap(self.pix).get_ell() > lmax))
+            self.indices_filter = tuple(np.asarray(np.where((maps.rmap(self.pix).get_ell() < lmin) |  (maps.rmap(self.pix).get_ell() > lmax)), dtype=np.int32))
             self.t_obs = maps.filter_tmap(self.t_obs,self.pix,self.params_szifi["lrange"], indices_filter=self.indices_filter)
 
             times, ctime = add_time(times, ctime, 'filter_tmap')
@@ -244,6 +241,8 @@ class cluster_finder:
 
                     self.inv_cov = spec.cross_spec(self.params_szifi["freqs"]).get_inv_cov(self.pix,theory=True,cmb=True)
 
+
+                del self.mask_point
                 #Filter covariance matrix
 
                 #self.inv_cov = maps.filter_cov(self.inv_cov,self.pix,self.params_szifi["lrange"])
@@ -461,7 +460,6 @@ class filter_maps:
     def find_clusters(self):
         global times
         t_obs = self.t_obs
-
         if self.params["apod_type"] == "old":
 
             t_obs = maps.multiply_t(self.mask_map, t_obs)
@@ -550,7 +548,7 @@ class filter_maps:
 
             q_map,y_map,std = get_mmf_q_map(t_obs,tem,self.inv_cov,self.pix,mmf_type=self.params["mmf_type"],
             cmmf_prec=self.cmmf,tem_norm=t_tem_norm)
-
+            del tem
             times, ctime = add_time(times, ctime, 'get_mmf_q_map')
 
 
@@ -817,7 +815,7 @@ mmf_type="standard",cmmf_prec=None,comp=0,tem_norm=None):
     global times
     ctime = get_time()
     n_freqs = tmap.shape[2]
-    y_map = np.zeros((pix.nx,pix.ny))
+    y_map = np.zeros((pix.nx,pix.ny), dtype=tmap.dtype)
     #norm_map = np.zeros((pix.nx,pix.ny))
 
     tem_fft = maps.get_fft_f(tem,pix)
@@ -826,9 +824,10 @@ mmf_type="standard",cmmf_prec=None,comp=0,tem_norm=None):
     cmmf_prec=cmmf_prec,comp=comp)
     del tem_fft
 
-    filter = maps.get_ifft_f(filter_fft,pix).real
+    filter = np.asarray(maps.get_ifft_f(filter_fft,pix).real, dtype=tmap.dtype)
+    del filter_fft
     times, ctime = add_time(times, ctime, 'get_mmf_q_map:ffts')
-    tem = maps.get_tmap_times_fvec(tem,cmmf_prec.a_matrix[:,comp]).real #new line
+    tem[:] = maps.get_tmap_times_fvec(tem,cmmf_prec.a_matrix[:,comp]).real #new line
 
     if tem_norm is None:
 
@@ -837,6 +836,7 @@ mmf_type="standard",cmmf_prec=None,comp=0,tem_norm=None):
     else:
 
         tem_norm = maps.get_tmap_times_fvec(tem_norm,cmmf_prec.a_matrix[:,comp]).real #new line
+        del tem
 
     ctime=get_time()
 
@@ -849,10 +849,12 @@ mmf_type="standard",cmmf_prec=None,comp=0,tem_norm=None):
         #norm = sg.fftconvolve(tem_norm[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
 
         y_map += y
+    y_map = np.asarray(y_map, dtype=tmap.dtype)
+    del y
         #norm_map += norm
     times, ctime = add_time(times, ctime, 'fftconvolve step')
     norm = np.sum(tem_norm*filter)*pix.dx*pix.dy
-
+    del tem_norm, filter
     #norm = np.max(norm_map)
 
     y_map = y_map/norm

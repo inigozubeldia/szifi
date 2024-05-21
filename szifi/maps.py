@@ -269,7 +269,8 @@ def filter_fft_f(map_fft,pix,ell_filter,indices_filter=None):
     return map_fft
 
 def filter_tmap(tmap,pix,ell_filter,indices_filter=None):
-    return get_ifft_f(filter_fft_f(get_fft_f(tmap,pix),pix,ell_filter,indices_filter=indices_filter),pix).real
+    dtype = tmap.dtype
+    return np.asarray(get_ifft_f(filter_fft_f(get_fft_f(tmap,pix),pix,ell_filter,indices_filter=indices_filter),pix).real, dtype=dtype)
 
 def filter_map(map,pix,ell_filter):
 
@@ -1251,7 +1252,7 @@ def get_map_convolved_fft(map_fft_original,pix,freqs,beam_type,mask,lrange,exp):
 
 def diffusive_inpaint_freq(tmap,mask,n_inpaint):
 
-    ret = np.zeros(tmap.shape)
+    ret = np.zeros(tmap.shape, dtype=tmap.dtype)
 
     for i in range(0,tmap.shape[2]):
 
