@@ -37,8 +37,8 @@ params_szifi_default = {
 "theta_find": "input",
 "detection_method": "maxima",
 "apod_type": "old",
-"path": "/nvme/scratch/erosen/programs/szifi/",
-"path_data": "/nvme/scratch/erosen/data/so_sims/",
+"path": "/global/homes/r/rosenber/Programs/szifi/",
+"path_data": "/global/homes/r/rosenber/Programs/szifi/data/",
 
 "mmf_type": "standard", #"standard" or "spectrally_constrained"
 "cmmf_type": "one_dep", #"one_dep" or "general". If only one SED is deprojected, use "one_dep" (faster); they are mathematically the same
