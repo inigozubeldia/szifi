@@ -7,7 +7,6 @@ import pylab as pl
 #has already been calculated (see get_coupling_matrix.py)
 
 #Set parameters
-@profile
 def main():
     params_szifi = szifi.params_szifi_so
     params_data = szifi.params_data_so
