@@ -33,14 +33,14 @@ def collect_freqs(fn_in_list, fn_out):
 #def main():
 def run_tiles(groupinfo):
     igroup, ngroup = groupinfo
-    basedir = "/nvme1/scratch/erosen/data/so_sims"
+    basedir = "/pscratch/sd/r/rosenber/so_sz/data/"
     templatemap_fn = f"{basedir}/masks/AdvACTSurveyMask_v7_galLatCut_S18_all1_pixell.fits" # Any car map of the right geometry as a template
     nside = 8  # Healpix NSIDE defining logical tiles
     field_size_deg = 14.8 # 1d square field size in degrees; None for auto
     nx = 4096
     dx_deg = field_size_deg / nx
     print(f"dx {dx_deg*60:02.2f} arcmin")
-    projection_method='sht' # Method of projection 'sht' or 'spline'
+    projection_method='spline' # Method of projection 'sht' or 'spline'
     sht_lmax=10000 # lmax if doing sht projection; None for auto; not used if alm_fn is provided
     apod_pix = 50 # Number of pixels to apodize the edge of the map (for SHT interpolation)
     alm_fn = None#"/home/erik/jbca/Programs/szifi/data/so_maps/cmb+noise+sz_093GHz_cmbseed000_lat-063to+023deg_webskyps_beamfwhm_02p2arcmin_white008uK-arcmin_seed093_alm-lmax40000.npy" # .npy file containing alms for sht, None if unused
@@ -49,8 +49,8 @@ def run_tiles(groupinfo):
     verbosity = 2 # How much to print, 0,1,2
     imin, imax = 273-208, 274-208 # min, max index to calculate
 
-    do_galmask = False
-    do_masks = False
+    do_galmask = True
+    do_masks = True
     do_tiles = True
     
     if imax is None: imax = int(1e10)
@@ -86,9 +86,9 @@ def run_tiles(groupinfo):
 def combine_freqs(groupinfo):
     """Combine individual frequency tiles into one. This should probably be done earlier but do here for now"""
     igroup, ngroup = groupinfo
-    basedir = "/nvme1/scratch/erosen/data/so_sims"
+    basedir = "/pscratch/sd/r/rosenber/so_sz/data"
     freqs = ['027', '039', '093', '145', '225', '278']
-    projection_method = 'sht'
+    projection_method = 'spline'
     order=3
     sht_lmax=10000
     healpix_id_fn = f"{basedir}/cmb+noise+sz_car_f32/healpix_ids_sosimmask_nside008.txt" # Optional save ids of healpixels in our region
@@ -114,12 +114,16 @@ def calculate_group_info(igroup, ngroup, imin, imax):
     imax0 = imin0 + gwidth[igroup]
     return imin0, imax0
 
+# def main():
+#     ngroup = 1 # This should be 1 for SHT (which can use all the cores) to prevent CPU oversubscription. Would be better to split those up too but more work needed
+#     #fun = run_tiles
+#     fun = combine_freqs
+#     with Pool(ngroup) as pool:
+#         pool.map(fun, ((ii, ngroup) for ii in range(ngroup)))
+
 def main():
-    ngroup = 1 # This should be 1 for SHT (which can use all the cores) to prevent CPU oversubscription. Would be better to split those up too but more work needed
-    #fun = combine_freqs
-    fun = combine_freqs
-    with Pool(ngroup) as pool:
-        pool.map(fun, ((ii, ngroup) for ii in range(ngroup)))
+    combine_freqs((0,1))
+    #run_tiles((0,1))
 
 if __name__ == '__main__':
     main()

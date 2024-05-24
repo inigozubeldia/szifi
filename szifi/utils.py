@@ -194,3 +194,12 @@ def gaussian_1d(x,mu,sigma):
     y = (x-mu)/sigma
 
     return np.exp(-0.5*y**2)/(np.sqrt(2.*np.pi*sigma**2))
+
+def extract(dct, name, field_id=None):
+    """Return a data entry and delete it from this object for memory management"""
+    if field_id is None:
+        return dct.pop(name)
+    else:
+        obj = dct[name][field_id]
+        del dct[name][field_id]
+    return obj
