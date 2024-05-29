@@ -61,17 +61,17 @@ class cluster_finder:
             print("")
 
             #Gather input data
+            map_dtype = self.params_szifi["map_dtype"]
+            self.t_obs = utils.extract(self.data_file, "t_obs", field_id, map_dtype) #in muK
+            self.t_noi = utils.extract(self.data_file, "t_noi", field_id, map_dtype) #in muK
 
-            self.t_obs = utils.extract(self.data_file, "t_obs", field_id) #in muK
-            self.t_noi = utils.extract(self.data_file, "t_noi", field_id) #in muK
-
-            self.mask_point = utils.extract(self.data_file, "mask_point", field_id)
-            self.mask_ps = utils.extract(self.data_file, "mask_ps", field_id)
-            self.mask_select = utils.extract(self.data_file, "mask_select", field_id)
-            self.mask_select_no_tile = utils.extract(self.data_file, "mask_select_no_tile", field_id)
-            self.mask_map = utils.extract(self.data_file, "mask_map", field_id)
-            self.mask_peak_finding_no_tile = utils.extract(self.data_file, "mask_peak_finding_no_tile", field_id)
-            self.mask_peak_finding = utils.extract(self.data_file, "mask_peak_finding", field_id)
+            self.mask_point = utils.extract(self.data_file, "mask_point", field_id, map_dtype)
+            self.mask_ps = utils.extract(self.data_file, "mask_ps", field_id, map_dtype)
+            self.mask_select = utils.extract(self.data_file, "mask_select", field_id, map_dtype)
+            self.mask_select_no_tile = utils.extract(self.data_file, "mask_select_no_tile", field_id, map_dtype)
+            self.mask_map = utils.extract(self.data_file, "mask_map", field_id, map_dtype)
+            self.mask_peak_finding_no_tile = utils.extract(self.data_file, "mask_peak_finding_no_tile", field_id, map_dtype)
+            self.mask_peak_finding = utils.extract(self.data_file, "mask_peak_finding", field_id, map_dtype)
 
             self.dx = self.data_file["dx_arcmin"][field_id]/60./180.*np.pi
             self.nx = self.data_file["nx"][field_id]
@@ -89,7 +89,7 @@ class cluster_finder:
             self.t_obs = maps.select_freqs(self.t_obs,self.params_szifi["freqs"])
             self.t_noi = maps.select_freqs(self.t_noi,self.params_szifi["freqs"])
             if self.params_szifi["get_q_true"] == True:
-                self.t_true = utils.extract(self.data_file, "t_true", field_id)
+                self.t_true = utils.extract(self.data_file, "t_true", field_id, map_dtype)
                 self.t_true = maps.select_freqs(self.t_true,self.params_szifi["freqs"])
 
             #Inpaint point sources
@@ -145,7 +145,7 @@ class cluster_finder:
                     print("Noise it",i)
 
                 if not np.any(self.mask_select):
-
+                    print(f"{self.rank}: mask_select all zeroes for field {field_id}, iteration {i}; breaking")
                     break
 
                 self.mask_point = mask_point_0*mask_cluster
@@ -419,8 +419,8 @@ class filter_maps:
 
         n_theta = len(self.theta_500_vec)
 
-        self.q_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta))
-        self.y_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta))
+        self.q_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta), dtype=self.params['map_dtype'])
+        self.y_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta), dtype=self.params['map_dtype'])
         self.sigma_vec = np.zeros(n_theta)
 
         for j in range(0,n_theta):

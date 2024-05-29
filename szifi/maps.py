@@ -1270,7 +1270,7 @@ def diffusive_inpaint(image,mask,n_inpaint):
         inpainted_image = image
 
     else:
-
+        mask = np.asarray(mask, dtype=image.dtype) # Matching types needed for jit
         masked_image = image*mask
         zeros = np.where(mask == 0.)
         x_0 = zeros[0]
