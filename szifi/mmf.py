@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.signal as sg
 from szifi import params, maps, model, cat, spec, utils, sed
-import warnings
+import warnings, os
 warnings.filterwarnings("ignore")
 
 #Core class for cluster finding
@@ -353,6 +353,12 @@ class cluster_finder:
 
                 i += 1
 
+            # Clean up the saved templates
+            if self.params_szifi["save_and_load_template"] and hasattr(self, 'filtered_maps'):
+                for j_theta in range(len(self.theta_500_vec)):
+                    os.remove(self.filtered_maps.template_name % j_theta)
+                    os.remove(self.filtered_maps.template_norm_name % j_theta)
+
             if self.params_szifi["get_lonlat"] == True:
 
                 self.results.get_lonlat(field_id,self.pix,nside=self.data_file["nside_tile"])
@@ -407,6 +413,10 @@ class filter_maps:
 
         self.theta_range = [0.,pix.nx*pix.dx,0.,pix.ny*pix.dy]
 
+        if self.params["save_and_load_template"]:
+            self.template_name = self.params["path_template"] + f"tem_{self.field_id}_%s.npy" # % j (theta index)
+            self.template_norm_name = self.params["path_template"] + f"tem_norm_{self.field_id}_%s.npy"
+
     #Find detections blindly
     #@profile
     def find_clusters(self):
@@ -428,6 +438,12 @@ class filter_maps:
             if self.rank == 0:
 
                 print("Theta",j,self.theta_500_vec[j])
+
+            if self.params["save_and_load_template"] == True:
+                template_name = self.template_name % j
+                template_norm_name = self.template_norm_name % j
+                if self.i_it == 0 and os.path.isfile(template_name):
+                    raise RuntimeError(f"template file {template_name} exists already; overwriting not allowed to prevent collisions during parallel runs")
 
             if self.params["save_and_load_template"] == False or (self.params["save_and_load_template"] == True and self.i_it == 0):
 
@@ -476,22 +492,21 @@ class filter_maps:
                 tem = maps.filter_tmap(t_tem,self.pix,self.params["lrange"], indices_filter=self.indices_filter)
 
                 if self.params["save_and_load_template"] == True:
-
-                    np.save(self.params["path_template"] + "tem_" + str(j) + ".npy",tem)
-                    np.save(self.params["path_template"] + "tem_norm_" + str(j) + ".npy",t_tem_norm)
+                    np.save(template_name,tem)
+                    np.save(template_norm_name,t_tem_norm)
 
                     print("Template saved")
 
             elif self.params["save_and_load_template"] == True and self.i_it > 0:
 
-                tem = np.load(self.params["path_template"] + "tem_" + str(j) + ".npy",allow_pickle=True)[()]
-                t_tem_norm = np.load(self.params["path_template"] + "tem_norm_" + str(j) + ".npy",allow_pickle=True)[()]
+                tem = np.load(template_name,allow_pickle=True)[()]
+                t_tem_norm = np.load(template_norm_name,allow_pickle=True)[()]
 
                 print("Template loaded")
 
             q_map,y_map,std = get_mmf_q_map(t_obs,tem,self.inv_cov,self.pix,mmf_type=self.params["mmf_type"],
             cmmf_prec=self.cmmf,tem_norm=t_tem_norm)
-            del tem
+            del tem, t_tem_norm
 
             if self.params["save_snr_maps"] == True:
 
@@ -500,6 +515,7 @@ class filter_maps:
             self.q_tensor[:,:,j] = q_map
             self.y_tensor[:,:,j] = y_map
             self.sigma_vec[j] = std
+            del q_map, y_map
 
         n_mask_select = len(self.mask_select_list)
         self.results_list = []
