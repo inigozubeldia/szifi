@@ -238,8 +238,8 @@ class cluster_finder:
                 params=self.params_szifi,
                 params_model=self.params_model,
                 mask_map=self.mask_map,
-                mask_select_list=[self.mask_select,self.mask_select_no_tile],
-                mask_peak_finding_list=[self.mask_peak_finding,self.mask_peak_finding_no_tile],
+                mask_select_dict={"tile": self.mask_select, "field": self.mask_select_no_tile},
+                mask_peak_finding_dict={"tile": self.mask_peak_finding, "field": self.mask_peak_finding_no_tile},
                 rank=self.rank,
                 exp=self.exp,
                 cmmf=self.cmmf)
@@ -256,10 +256,8 @@ class cluster_finder:
 
                     self.results.sigma_vec["find_" + str(i)] = self.filtered_maps.sigma_vec
 
-                    results_list = self.filtered_maps.results_list
-
-                    self.results.catalogues["catalogue_find_" + str(i)] = results_list[0]
-                    results_for_masking = results_list[1]
+                    self.results.catalogues["catalogue_find_" + str(i)] = self.filtered_maps.results['tile']
+                    results_for_masking = self.filtered_maps.results['field']
 
                     if self.rank == 0:
 
@@ -390,8 +388,8 @@ def get_cluster_mask(pix,catalogue,q_th_noise,mask_radius):
 class filter_maps:
 
     def __init__(self,t_obs=None,inv_cov=None,pix=None,cosmology=None,theta_500_vec=None,
-    params=None,field_id=0,i_it=0,mask_map=None,mask_select_list=None,
-    mask_peak_finding_list=None,rank=0,exp=None,cmmf=None,params_model=None,indices_filter=None):
+    params=None,field_id=0,i_it=0,mask_map=None,mask_select_dict=None,
+    mask_peak_finding_dict=None,rank=0,exp=None,cmmf=None,params_model=None,indices_filter=None):
 
         self.t_obs = t_obs
         self.inv_cov = inv_cov
@@ -403,8 +401,9 @@ class filter_maps:
         self.field_id = field_id
         self.i_it = i_it
         self.mask_map = mask_map
-        self.mask_select_list = mask_select_list
-        self.mask_peak_finding_list = mask_peak_finding_list
+        self.mask_select_dict = mask_select_dict
+        self.mask_peak_finding_dict = mask_peak_finding_dict
+        self.mask_names = ["field", "tile"] # Order of calculation and easy iteration
         self.rank = rank
         self.theta_500_vec = theta_500_vec
         self.exp = exp
@@ -418,7 +417,7 @@ class filter_maps:
             self.template_norm_name = self.params["path_template"] + f"tem_norm_{self.field_id}_%s.npy"
 
     #Find detections blindly
-    #@profile
+
     def find_clusters(self):
 
         t_obs = self.t_obs
@@ -428,9 +427,16 @@ class filter_maps:
             t_obs = maps.filter_tmap(t_obs,self.pix,self.params["lrange"], indices_filter=self.indices_filter)
 
         n_theta = len(self.theta_500_vec)
-
-        self.q_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta), dtype=self.params['map_dtype'])
-        self.y_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta), dtype=self.params['map_dtype'])
+        detect_peaks_maxima = (self.params["detection_method"] == "maxima") and (n_theta > 3)
+        if detect_peaks_maxima:
+            self.peak_info = {}
+            for mask_name in self.mask_names:
+                self.peak_info[mask_name] = np.empty((5, 0), dtype=np.float32)
+            self.q_tensor = np.zeros((self.pix.nx,self.pix.ny,3), dtype=self.params['map_dtype'])
+            self.y_map_last = None
+        else:
+            self.q_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta), dtype=self.params['map_dtype'])
+            self.y_tensor = np.zeros((self.pix.nx,self.pix.ny,n_theta), dtype=self.params['map_dtype'])
         self.sigma_vec = np.zeros(n_theta)
 
         for j in range(0,n_theta):
@@ -510,33 +516,73 @@ class filter_maps:
 
             if self.params["save_snr_maps"] == True:
 
-                np.save(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_list[0])
+                np.save(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_dict['tile'])
 
-            self.q_tensor[:,:,j] = q_map
-            self.y_tensor[:,:,j] = y_map
+
+            if detect_peaks_maxima: # For "maxima" method we do peak-finding here to save memory
+                q_th = self.params['q_th']
+                if j == 0:
+                    self.q_tensor[:,:,1] = q_map
+                    self.y_map_last = y_map
+                    continue
+
+                else:
+                    self.q_tensor[:,:,2] = q_map
+
+                    qm = self.q_tensor[:,:,1] # We actually want to use the previous one
+                    zmax = np.argmax(self.q_tensor, axis=2) == 1
+                    for mask_name in self.mask_names:
+                        q_opt, y0_est, maxs_idx = make_detections2(qm, self.y_map_last, self.mask_peak_finding_dict[mask_name], q_th, zmax)
+
+                        self.save_detections(q_opt, y0_est, maxs_idx, mask_name, j-1)
+
+                    if j == n_theta-1:
+                        qm = self.q_tensor[:,:,2]
+                        zmax = np.argmax(self.q_tensor[:,:,1:], axis=2) == 1
+                        for mask_name in self.mask_names:
+                            q_opt, y0_est, maxs_idx = make_detections2(qm, y_map, self.mask_peak_finding_dict[mask_name], q_th, zmax)
+                            self.save_detections(q_opt, y0_est, maxs_idx, mask_name, j)
+
+                    self.q_tensor = np.roll(self.q_tensor, -1, axis=2)
+                    self.y_map_last = y_map
+                    del qm, zmax, q_map, y_map
+
+            else:
+                self.q_tensor[:,:,j] = q_map
+                self.y_tensor[:,:,j] = y_map
+                del q_map, y_map
+
             self.sigma_vec[j] = std
-            del q_map, y_map
 
-        n_mask_select = len(self.mask_select_list)
-        self.results_list = []
+        self.results = {}
 
         x_coord = maps.rmap(self.pix).get_x_coord_map_wrt_origin() #vertical coordinate, in rad
 
         y_coord = maps.rmap(self.pix).get_y_coord_map_wrt_origin() #horizontal coordinate, in rad
 
-        for i in range(0,n_mask_select):
+        for mask_name in self.mask_names:
 
-            q_tensor = apply_mask_peak_finding(self.q_tensor,self.mask_peak_finding_list[i])
-            y_tensor = apply_mask_peak_finding(self.y_tensor,self.mask_peak_finding_list[i])
+            if detect_peaks_maxima:
+                q_opt, y0_est, theta_est, inds0, inds1 = self.peak_info[mask_name]
+                inds0, inds1 = inds0.astype(np.int64), inds1.astype(np.int64)
+                x_est = x_coord[(inds0, inds1)]
+                y_est = y_coord[(inds0, inds1)]
 
-            indices = make_detections(q_tensor,self.params["q_th"],self.pix,detection_method=self.params["detection_method"])
+            else:
+                # deepcopy(self.q_tensor) here would be safest, otherwise self.q_tensor is modified in place
+                # But for memory savings, this is OK if the order is (no_tile, tile)
+                if self.mask_names != ['field', 'tile']:
+                    raise ValueError("masks must be ['field', 'tile']")
+                q_tensor = apply_mask_peak_finding(self.q_tensor, self.mask_peak_finding_dict[mask_name])
+                indices = make_detections(q_tensor,self.params["q_th"],self.pix,detection_method=self.params["detection_method"])
 
-            q_opt = q_tensor[indices]
-            y0_est = y_tensor[indices]
-            x_est = x_coord[(indices[0],indices[1])]
-            y_est = y_coord[(indices[0],indices[1])]
-            theta_est = self.theta_500_vec[indices[2]]
-            n_detect = len(q_opt)
+                q_opt = q_tensor[indices]
+                y_tensor = apply_mask_peak_finding(self.y_tensor,self.mask_peak_finding_dict[mask_name])
+                y0_est = y_tensor[indices]
+                x_est = x_coord[(indices[0],indices[1])]
+                y_est = y_coord[(indices[0],indices[1])]
+                theta_est = self.theta_500_vec[indices[2]]
+                n_detect = len(q_opt)
 
             theta_x = y_est + self.theta_range[0]
             theta_y = self.pix.nx*self.pix.dx - x_est + self.theta_range[2]
@@ -550,8 +596,8 @@ class filter_maps:
             cat_new.catalogue["theta_y"] = theta_y
             cat_new.catalogue["pixel_ids"] = np.ones(len(q_opt))*self.field_id
 
-            cat_new = cat.apply_mask_select(cat_new,self.mask_select_list[i],self.pix)
-            self.results_list.append(cat_new)
+            cat_new = cat.apply_mask_select(cat_new,self.mask_select_dict[mask_name],self.pix)
+            self.results[mask_name] = cat_new
 
         return 0
 
@@ -626,6 +672,14 @@ class filter_maps:
             catalogue_at_true_values.catalogue["c" + str(i)] = y0_est[:,i]
 
         self.catalogue_true_values = catalogue_at_true_values
+
+
+    def save_detections(self, q_opt, y0_est, maxs_idx, mask_name, j_theta):
+
+        thetas = np.ones_like(q_opt) * self.theta_500_vec[j_theta]
+        ans = np.vstack([q_opt, y0_est, thetas, maxs_idx.T])
+        self.peak_info[mask_name] = np.hstack([self.peak_info[mask_name], ans])
+
 
 #Apply MMF for input catalogue
 
@@ -743,6 +797,14 @@ def make_detections(q_tensor,q_th,pix,detection_method="maxima"):
 
     return ret
 
+def make_detections2(qmap, ymap, mask_peak_finding, q_th, zmax):
+    coords = np.where(np.logical_and(mask_peak_finding, (qmap > q_th)))  # Assume binary mask
+    maxs_idx = get_maxima(get_maxima_mask_2d(qmap, coords) & zmax)
+    indices = tuple(maxs_idx.astype(int).T) # (idx[:,0], idx[;,1])
+    q_opt = qmap[indices]
+    y0_est = ymap[indices]
+    return q_opt, y0_est, maxs_idx ## arrays: (Ndetections,), (Ndetections,), (Ndetections, 2)
+
 #Mask for peak finding
 
 def get_maxima_mask(r_input):
@@ -755,6 +817,20 @@ def get_maxima_mask(r_input):
     zmax=np.argmax([r[1:-1,1:-1, 2:], r[1:-1,1:-1, :-2], r[1:-1,1:-1, 1:-1]], axis=0) == 2
 
     return xmax&ymax&zmax
+
+def get_maxima_mask_2d(r_input, coords=None):
+
+    r = np.ones((r_input.shape[0]+2, r_input.shape[1]+2)) * -np.inf
+    if coords is None:
+        r[1:-1, 1:-1] = r_input
+    else:
+        r[1:-1, 1:-1] = 0
+        r[1:-1, 1:-1][coords] = r_input[coords]
+
+    xmax = np.argmax([r[2:, 1:-1], r[:-2, 1:-1], r[1:-1, 1:-1]], axis=0) == 2
+    ymax = np.argmax([r[1:-1, 2:], r[1:-1, :-2], r[1:-1, 1:-1]], axis=0) == 2
+
+    return xmax&ymax
 
 #Peak finding
 
