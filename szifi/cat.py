@@ -109,6 +109,8 @@ def merge_detections(catalogue,radius_arcmin=10.,return_merge_flag=False,mode="c
 
     catalogue = get_catalogue_indices(catalogue,np.where(catalogue.catalogue["q_opt"] != -1.)[0])
     n_clusters = len(catalogue.catalogue["q_opt"])
+    if n_clusters == 0:
+        return catalogue
     catalogue_merged = cluster_catalogue()
     catalogue_compare = catalogue
 
