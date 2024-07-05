@@ -105,12 +105,11 @@ class cluster_catalogue:
 
         return len(self.catalogue["q_opt"][np.where(self.catalogue["q_opt"] != -1.)[0]])
 
-def merge_detections(catalogue,radius_arcmin=10.,return_merge_flag=False,mode="closest"):
+def merge_detections(catalogue,radius_arcmin=10.,return_merge_flag=False,mode="closest",
+fac_theta_500=1.,merge_radius_type="theta_500"):
 
     catalogue = get_catalogue_indices(catalogue,np.where(catalogue.catalogue["q_opt"] != -1.)[0])
     n_clusters = len(catalogue.catalogue["q_opt"])
-    if n_clusters == 0:
-        return catalogue
     catalogue_merged = cluster_catalogue()
     catalogue_compare = catalogue
 
@@ -193,6 +192,86 @@ def merge_detections(catalogue,radius_arcmin=10.,return_merge_flag=False,mode="c
 
             catalogue_merged.append(catalogue_new,append_keys="new")
 
+        ret = catalogue_merged
+
+    elif mode == "masking":
+
+        indices_sorted = np.argsort(catalogue.catalogue["q_opt"])[::-1]
+        catalogue = get_catalogue_indices(catalogue,indices_sorted)
+
+        i = 1
+
+        while i > 0:
+
+            if i > 1:
+
+                catalogue_new = get_catalogue_indices(catalogue,[0])
+                catalogue_merged.append(catalogue_new,append_keys="new")
+                lon1 = catalogue_new.catalogue["lon"][0]*np.ones(len(catalogue.catalogue["lon"]))
+                lat1 = catalogue_new.catalogue["lat"][0]*np.ones(len(catalogue.catalogue["lat"]))
+                lon2 = catalogue.catalogue["lon"]
+                lat2 = catalogue.catalogue["lat"]
+                coords1 = [lon1,lat1]
+                coords2 = [lon2,lat2]
+                distances = get_distance_sphere_lonlat(coords1,coords2)
+
+                if merge_radius_type == "fixed":
+
+                    indices_remove = np.where(distances < fac_theta_500)[0]
+
+                elif merge_radius_type == "theta_500":
+
+                    indices_remove = np.where(distances < fac_theta_500*catalogue_new.catalogue["theta_500"][0])[0]
+                catalogue = remove_catalogue_indices(catalogue,indices_remove)
+
+            elif i == 1:
+
+                catalogue_new = get_catalogue_indices(catalogue,[0])
+                catalogue_merged.append(catalogue_new,append_keys="new")
+                indices_remove = [0]
+                catalogue = remove_catalogue_indices(catalogue,indices_remove)
+            i = len(catalogue.catalogue["lon"])
+
+            if i == 0:
+                break
+        #    print(i,len(indices_remove),catalogue_merged.catalogue["q_opt"])
+        ret = catalogue_merged
+
+    elif mode == "masking_max":
+        indices_sorted = np.argsort(catalogue.catalogue["q_opt"])[::-1]
+        catalogue = get_catalogue_indices(catalogue,indices_sorted)
+        i = 1
+
+        while i > 0:
+
+            if i > 1:
+
+                catalogue_new = get_catalogue_indices(catalogue,[0])
+                catalogue_merged.append(catalogue_new,append_keys="new")
+                lon1 = catalogue_new.catalogue["lon"][0]*np.ones(len(catalogue.catalogue["lon"]))
+                lat1 = catalogue_new.catalogue["lat"][0]*np.ones(len(catalogue.catalogue["lat"]))
+                lon2 = catalogue.catalogue["lon"]
+                lat2 = catalogue.catalogue["lat"]
+                coords1 = [lon1,lat1]
+                coords2 = [lon2,lat2]
+                distances = get_distance_sphere_lonlat(coords1,coords2)
+                masking_radius = np.max([fac_theta_500*catalogue_new.catalogue["theta_500"][0],radius_arcmin])
+                indices_remove = np.where(distances < masking_radius)[0]
+                catalogue = remove_catalogue_indices(catalogue,indices_remove)
+
+            elif i == 1:
+
+                catalogue_new = get_catalogue_indices(catalogue,[0])
+                catalogue_merged.append(catalogue_new,append_keys="new")
+                indices_remove = [0]
+                catalogue = remove_catalogue_indices(catalogue,indices_remove)
+
+            i = len(catalogue.catalogue["lon"])
+
+            if i == 0:
+
+                break
+        #    print(i,len(indices_remove),catalogue_merged.catalogue["q_opt"])
         ret = catalogue_merged
 
     return ret
