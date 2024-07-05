@@ -1,13 +1,13 @@
 import numpy as np
 from mpi4py import MPI
 import szifi
-import time
+import time, os
 #import tracemalloc
-# comm = MPI.COMM_WORLD
-# rank = comm.Get_rank()
-# print(rank)
-#tracemalloc.start()
-rank=0
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+print(rank)
+
+#rank=0
 
 def calculate_group_info(igroup, ngroup, imin, imax):
     Ntile = imax - imin
@@ -18,15 +18,16 @@ def calculate_group_info(igroup, ngroup, imin, imax):
     imax0 = imin0 + gwidth[igroup]
     return imin0, imax0
 
-MAXRANK = 1
-NFIELDS = 1#536
+MAXRANK = comm.Get_size()
+NFIELDS = 536
 imin = 208 # lowest field
 
 if rank < MAXRANK:
     #Select fields
     n_core = MAXRANK
-    all_field_ids = np.arange(*calculate_group_info(rank, MAXRANK, imin, imin+NFIELDS))
-    print("Field ids",all_field_ids)
+    #all_field_ids = np.arange(*calculate_group_info(rank, MAXRANK, imin, imin+NFIELDS))
+    all_field_ids = np.arange(rank+imin, imin+NFIELDS, MAXRANK)
+    print(f"[{rank}] Field ids: ",all_field_ids)
     #Iterate over different cases
     suffixes = [
     "mmf_6",
@@ -44,14 +45,21 @@ if rank < MAXRANK:
     None,
     ]
     for field_id in all_field_ids:
+        print("Starting ", field_id)
         field_ids = [field_id] # Put this in a loop to not load all data products at once
         for i in range(0,len(suffixes)):
+            name = "so_it_find_" + suffixes[i]
+            catname = "/mirror/scratch/erosen/data/so_sims/catalogues_szifi_so/" + f"{name}_{field_id:03d}.npy"
+            if os.path.isfile(catname):
+                print(f"{catname} exists, continuing")
+                continue
+
             t0 = time.time()
-            print(i)
+            print(f"suffix {i+1}/{len(suffixes)}")
             #Set parameters
             params_szifi = {
-            #"theta_500_vec_arcmin": np.exp(np.linspace(np.log(0.1),np.log(15.),20)), #cluster search angular scales
-            "theta_500_vec_arcmin": np.exp(np.linspace(np.log(0.1),np.log(15.),1)), #cluster search angular scales
+            "theta_500_vec_arcmin": np.exp(np.linspace(np.log(0.1),np.log(15.),20)), #cluster search angular scales
+            #"theta_500_vec_arcmin": np.exp(np.linspace(np.log(0.1),np.log(15.),1)), #cluster search angular scales
             "q_th": 4., #detection threshold
             "q_th_noise": 4., #detection threshold to remove detections for iterative covariance estimation
             "mask_radius": 3., #masking radius for iterative covariance estimation in units of theta_500 for each detection
@@ -79,8 +87,12 @@ if rank < MAXRANK:
             "theta_find": "input",
             "detection_method": "maxima",
             "apod_type": "old",
-            "path": "/nvme/scratch/erosen/programs/szifi/",
-            "path_data": "/nvme/scratch/erosen/data/so_sims/",
+            "path": "/mirror/scratch/erosen/programs/szifi/",
+            "path_data": "/mirror/scratch/erosen/data/so_sims/",
+            "save_and_load_template": True,
+            "path_template": "/mirror/scratch/erosen/data/so_sims/tem/",
+            "map_dtype": np.float32,
+
             "mmf_type": mmf_types[i], #"standard" or "spectrally_constrained"
             "cmmf_type": cmmf_types[i], #"one_dep" or "general". If only one SED is deprojected, use "one_dep" (faster); they are mathematically the same
             "a_matrix": None, #n_freq x n_component SED matrix. The first column should be the tSZ SED, the second column the deprojection SED
@@ -115,6 +127,5 @@ if rank < MAXRANK:
             cluster_finder.find_clusters()
             #Retrieve results
             results = cluster_finder.results_dict
-            name = "planck_it_find_apodold_planckcibparams_" + suffixes[i]
-            np.save("/nvme/scratch/erosen/data/so_sims/catalogues_szifi_so/" + name + "_" + str(rank) + ".npy",results)
+            np.save(catname, results)
             print("Time",time.time()-t0)
