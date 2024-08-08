@@ -3,6 +3,7 @@ import scipy.signal as sg
 from szifi import params, maps, model, cat, spec, utils, sed
 import warnings, os
 warnings.filterwarnings("ignore")
+import gzip
 
 #Core class for cluster finding
 class cluster_finder:
@@ -515,9 +516,10 @@ class filter_maps:
             del tem, t_tem_norm
 
             if self.params["save_snr_maps"] == True:
-
-                np.save(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_dict['tile'])
-
+                fil = gzip.GzipFile(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy.gz", 'w')
+                #np.save(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_dict['tile'])
+                np.save(file=fil, arr=q_map*self.mask_select_dict['tile'])
+                fil.close()
 
             if detect_peaks_maxima: # For "maxima" method we do peak-finding here to save memory
                 q_th = self.params['q_th']
