@@ -250,8 +250,8 @@ class cluster_finder:
                 params=self.params_szifi,
                 params_model=self.params_model,
                 mask_map=self.mask_map,
-                mask_select_list=[self.mask_select,self.mask_select_no_tile],
-                mask_peak_finding_list=[self.mask_peak_finding,self.mask_peak_finding_no_tile],
+                mask_select_list=[self.mask_select_no_tile,self.mask_select],
+                mask_peak_finding_list=[self.mask_peak_finding_no_tile,self.mask_peak_finding],
                 rank=self.rank,
                 exp=self.exp,
                 cmmf=self.cmmf)
@@ -486,7 +486,7 @@ class filter_maps:
 
                 if self.params["save_snr_maps"] == True:
 
-                    np.save(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_list[0])
+                    np.save(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_list[1])
 
                 self.q_tensor[:,:,j,k] = q_map
                 self.y_tensor[:,:,j,k] = y_map
@@ -756,7 +756,7 @@ mmf_type="standard",cmmf_prec=None,tem_nc=None,comp=0):
 
     n_freqs = tmap.shape[2]
     y_map = np.zeros((pix.nx,pix.ny))
-    norm_map = np.zeros((pix.nx,pix.ny))
+    #norm_map = np.zeros((pix.nx,pix.ny))
 
     tem_fft = maps.get_fft_f(tem,pix)
 
@@ -773,12 +773,13 @@ mmf_type="standard",cmmf_prec=None,tem_nc=None,comp=0):
     for i in range(n_freqs):
 
         y = sg.fftconvolve(tmap[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
-        norm = sg.fftconvolve(tem[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
+        #norm = sg.fftconvolve(tem[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
 
         y_map += y
-        norm_map += norm
+        #norm_map += norm
 
-    norm = np.max(norm_map)
+    norm = np.sum(tem*filter)*pix.dx*pix.dy
+   # norm = np.max(norm_map)
     y_map = y_map/norm
 
     std = 1./np.sqrt(norm)
