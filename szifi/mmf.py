@@ -270,8 +270,8 @@ class cluster_finder:
 
                     results_list = self.filtered_maps.results_list
 
-                    self.results.catalogues["catalogue_find_" + str(i)] = results_list[0]
-                    results_for_masking = results_list[1]
+                    self.results.catalogues["catalogue_find_" + str(i)] = results_list[1]
+                    results_for_masking = results_list[0]
 
                     if self.rank == 0:
 
