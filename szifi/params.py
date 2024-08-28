@@ -33,8 +33,8 @@ params_szifi_default = {
 "theta_find": "input",
 "detection_method": "maxima",
 "apod_type": "old",
-"path": "/home/iz221/szifi/",
-"path_data": "/home/iz221/szifi/data/",
+"path": "/Users/inigozubeldia/Desktop/szifi/",
+"path_data": "/Users/inigozubeldia/Desktop/szifi/data/",
 
 "mmf_type": "standard", #"standard" or "spectrally_constrained"
 "cmmf_type": "one_dep", #"one_dep" or "general". If only one SED is deprojected, use "one_dep" (faster); they are mathematically the same
@@ -50,6 +50,9 @@ params_szifi_default = {
 "get_lonlat": True,
 
 "cosmology": "Planck15",
+"cosmology_tool": "classy_sz", #Only relevant if "cosmology" is "cosmocnc"
+
+"rSZ": False,
 }
 
 params_model_default = {

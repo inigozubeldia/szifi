@@ -397,6 +397,51 @@ def rfft2_to_fft2(pix,rfft):
 
     return fft
 
+def degrade_map(arr, degrade_fac, deg_axes=[0,1]):
+    """
+    Downsample an ndmap in the given axes by degrade_fac. Those axes must evenly divide into degrade_fac
+    arr: np.ndarray map
+    degrade_fac: int
+    deg_axes: list of ints indicating which axes to degrade
+    """
+    if arr is None:
+        return None
+    if type(degrade_fac) is not int:
+        raise TypeError(f"degrade_fac is of type {type(degrade_fac)}; must be int")
+    if np.any(np.array(arr.shape)[np.array(deg_axes)] < 100):
+        print(f"Warning: Degrading array of shape {arr.shape} on small axes {deg_axes}. Is this correct?")
+    if not np.all([arr.shape[ii] % degrade_fac == 0 for ii in deg_axes]):
+        raise ValueError(f"Array shape {arr.shape} must be evenly divisible by degrade_fac={degrade_fac} in the given axes {deg_axes}")
+    deg_axes = [ax % arr.ndim for ax in deg_axes] # Deal with negative indices
+    slices = tuple([slice(None, None, degrade_fac) if ax in deg_axes else slice(None) for ax in range(arr.ndim)])
+    return arr[slices]
+
+def degrade_pix(pix, degrade_fac):
+    """
+    Degrade a pixel object by degrade_fac; checks that map dimensions are an even multiple of degrade_fac
+    pix: szifi.maps.pixel object
+    degrade_fac: int
+    """
+    if not ((pix.nx % degrade_fac == 0) and (pix.ny % degrade_fac == 0)):
+        raise ValueError(f"Degrading mapsonly supported if map dimensions ({pix.nx, pix.ny}) are divisible by degrade_fac={degrade_fac}")
+    deg_pix = pixel(pix.nx//degrade_fac, pix.dx*degrade_fac, pix.ny//degrade_fac, pix.dy*degrade_fac)
+    return deg_pix
+
+def expand_matrix(arr, expand_fac):
+    """
+    Zero fill arr in the first two axes by the factor expand_fac
+    This splits arr into quadrants and adds zeros in the central cross; this is how to expand inv_cov
+    arr: np.ndarr with ndim>=2, first two axes are the ones to expand along
+    expand_fac: int, output shape will be (in0*expand_fac, in1*expand_fac, in2, in3, ...)
+    """
+    if expand_fac == 1:
+        return arr
+    new_arr = np.zeros((arr.shape[0]*expand_fac, arr.shape[1]*expand_fac) + arr.shape[2:])
+    shift_arr = np.fft.fftshift(arr, axes=(0,1))
+    edge = (expand_fac-1)*arr.shape[0]//2
+    new_arr[edge:-edge, edge:-edge] = shift_arr
+    new_arr = np.fft.ifftshift(new_arr, axes=(0,1))
+    return new_arr
 
 def nl(noise_uK_arcmin, fwhm_arcmin, lmax):
     """ returns the beam-deconvolved noise power spectrum in units of uK^2 for
@@ -894,96 +939,6 @@ def get_hankel_transform(theta_range,function,n=512,pad=128):
 
     return l,r,lprof,dlog
 
-#Taken from pixell
-
-class RadialFourierTransform:
-
-    def __init__(self, lrange=None, rrange=None, n=512, pad=256):
-        """Construct an object for transforming between radially
-        symmetric profiles in real-space and fourier space using a
-        fast Hankel transform. Aside from being fast, this is also
-        good for representing both cuspy and very extended profiles
-        due to the logarithmically spaced sample points the fast
-        Hankel transform uses. A cost of this is that the user can't
-        freely choose the sample points. Instead one passes the
-        multipole range or radial range of interest as well as the
-        number of points to use.
-
-        The function currently assumes two dimensions with flat geometry.
-        That means the function is only approximate for spherical
-        geometries, and will only be accurate up to a few degrees
-        in these cases.
-
-        Arguments:
-        * lrange = [lmin, lmax]: The multipole range to use. Defaults
-          to [0.01, 1e6] if no rrange is given.
-        * rrange = [rmin, rmax]: The radius range to use if lrange is
-        	not specified, in radians. Example values: [1e-7,10].
-        	Since we don't use spherical geometry r is not limited to 2 pi.
-        * n: The number of logarithmically equi-spaced points to use
-        	in the given range. Default: 512. The Hankel transform usually
-        	doesn't need many points for good accuracy, and can suffer if
-        	too many points are used.
-        * pad: How many extra points to pad by on each side of the range.
-          Padding is useful to get good accuracy in a Hankel transform.
-          The transforms this function does will return padded output,
-        	which can be unpadded using the unpad method. Default: 256
-        """
-        if lrange is None and rrange is None: lrange = [0.1, 1e7]
-        if lrange is None: lrange = [1/rrange[1], 1/rrange[0]]
-        logl1, logl2 = np.log(lrange)
-        logl0        = (logl2+logl1)/2
-        self.dlog    = (logl2-logl1)/n
-        i0           = (n+1)/2+pad
-        self.l       = np.exp(logl0 + (np.arange(1,n+2*pad+1)-i0)*self.dlog)
-        self.r       = 1/self.l[::-1]
-        self.pad     = pad
-
-    def real2harm(self, rprof):
-        """Perform a forward (real -> harmonic) transform, taking us from the
-        provided real-space radial profile rprof(r) to a harmonic-space profile
-        lprof(l). rprof can take two forms:
-        1. A function rprof(r) that can be called to evalute the profile at
-           arbitrary points.
-        2. An array rprof[self.r] that provides the profile evaluated at the
-           points given by this object's .r member.
-        The transform is done along the last axis of the profile.
-        Returns lprof[self.l]. This includes padding, which can be removed
-        using self.unpad"""
-        import scipy.fft
-        try: rprof = rprof(self.r)
-        except TypeError: pass
-        lprof = 2*np.pi*scipy.fft.fht(rprof*self.r, self.dlog, 0)/self.l
-        return lprof
-
-    def harm2real(self, lprof):
-        """Perform a backward (harmonic -> real) transform, taking us from the
-        provided harmonic-space radial profile lprof(l) to a real-space profile
-        rprof(r). lprof can take two forms:
-        1. A function lprof(l) that can be called to evalute the profile at
-           arbitrary points.
-        2. An array lprof[self.l] that provides the profile evaluated at the
-           points given by this object's .l member.
-        The transform is done along the last axis of the profile.
-        Returns rprof[self.r]. This includes padding, which can be removed
-        using self.unpad"""
-        import scipy.fft
-        try: lprof = lprof(self.l)
-        except TypeError: pass
-        rprof = scipy.fft.ifht(lprof/(2*np.pi)*self.l, self.dlog, 0)/self.r
-        return rprof
-
-    def unpad(self, *arrs):
-        """Remove the padding from arrays used by this object. The
-        values in the padded areas of the output of the transform have
-        unreliable values, but they're not cropped automatically to
-        allow for round-trip transforms. Example:
-        	r = unpad(r_padded)
-        	r, l, vals = unpad(r_padded, l_padded, vals_padded)"""
-        if self.pad == 0: res = arrs
-        else: res = tuple([arr[...,self.pad:-self.pad] for arr in arrs])
-        return res[0] if len(arrs) == 1 else res
-
 
 def profile_to_tform_hankel(profile_fun, lmin=0.1, lmax=1e7, n=512, pad=256):
     """Transform a radial profile given by the function profile_fun(r) to
@@ -994,7 +949,7 @@ def profile_to_tform_hankel(profile_fun, lmin=0.1, lmax=1e7, n=512, pad=256):
     the results. Note that unlike other similar functions in this module and
     the curvedsky module, this function uses the flat sky approximation, so
     it should only be used for profiles up to a few degrees in size."""
-    rht   = RadialFourierTransform(lrange=[lmin,lmax], n=n, pad=pad)
+    rht   = radialFourierTransform(lrange=[lmin,lmax], n=n, pad=pad)
     lprof = rht.real2harm(profile_fun)
     return rht.unpad(rht.l, lprof)
 
@@ -1129,7 +1084,7 @@ def diffusive_inpaint_freq(tmap,mask,n_inpaint):
 
     return ret
 
-@jit
+@jit(nopython=False)
 def diffusive_inpaint(image,mask,n_inpaint):
 
     nx = len(image)

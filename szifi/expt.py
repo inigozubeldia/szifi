@@ -34,6 +34,16 @@ class experiment:
             self.tsz_sed = tsz_sed_model.get_sed_exp_bandpass(self)
             self.bandpass_file = fits.open(params_szifi["path"] + "data/HFI_RIMO_Beams-075pc_R2.00.fits")
 
+        if self.experiment_name == "Planck_validation":
+
+            self.nu_eff = np.array([100.,143.,217.,353.,545.,857.])*1e9
+            self.FWHM = np.array([9.68,7.3,5.02,4.94,4.83,4.64]) #FWHM1 of https://www.aanda.org/articles/aa/pdf/2016/10/aa25820-15.pdf
+            self.noise_levels = np.array([1.29,0.55,0.78,2.56,0.78/1000.*1.7508e4,0.72/1000.*6.9653e5])*60.
+            self.MJysr2muK = np.array([4.1877e3,2.632e3,2.0676e3,3.371e3,1.7508e4,6.9653e5])
+
+            self.tsz_sed_old = np.array([-4.1103e6,-2.8355e6,-2.1188e4,6.1071e6,1.5257e7,3.0228e7])
+            self.tsz_sed = tsz_model().get_sed(self.nu_eff)
+
         if self.experiment_name == "Planck_simple":
 
             self.nu_eff = np.array([100.,143.,217.,353.,545.,857.])*1e9

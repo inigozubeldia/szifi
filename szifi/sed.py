@@ -140,10 +140,40 @@ class tsz_model:
 
     def get_sed(self,nu):
 
-        if self.T_e is None:
+        if self.T_e is None or self.T_e == 0.:
 
             x = nu*self.const.h/(self.const.k_B*self.const.T_CMB)
             SED = (x/np.tanh(0.5*x)-4.)*self.const.T_CMB*1e6
+
+        else:
+
+            #add rSZ SED here
+
+            import SZpack
+
+            params = SZpack.parameters()
+
+            params.set_x_array(0.1,20,500)    # This generates a logspaced array for xcmb of 100 points between 0.1 and 14
+            params.betao = 0.0                # Peculiar velocity of observer with respect to CMB frame (betac = v/c)
+            params.muo = 0.0                  # Cosine of line-of-sight to the observers velocity. Angle measured in the observer frame
+            params.betac = 0.0               # Peculiar velocity of cluster with respect to CMB frame (betao = v/c)
+            params.muc = 0.                 # Cosine of cluster velocity to the line-of-sight in the CMB rest frame
+            params.Te = self.T_e                  # Electron temperature in keV
+            params.Dtau = 0.01             # The optical depth (must be > 0)
+            params.check_values()             # A function to check that the values set are valid.
+
+            #nonrel = szpack.compute_non_relativistic(params,DI=True)/params.calc_The/params.Dtau
+            SED = SZpack.compute_combo(params,DI=True)/params.calc_The/params.Dtau
+
+            nu_szpack = params.nucmb*1e9
+
+            SED = SED/muK_to_MJysr(nu_szpack)
+            SED = np.interp(nu,nu_szpack,SED)
+
+            print("Relativistic SZ")
+
+            #x = nu*self.const.h/(self.const.k_B*self.const.T_CMB)
+            #SED = (x/np.tanh(0.5*x)-4.)*self.const.T_CMB*1e6
 
         return SED
 

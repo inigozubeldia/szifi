@@ -2,6 +2,7 @@ import numpy as np
 import pylab as pl
 import scipy.signal as sg
 import scipy.interpolate as interpolate
+import copy
 import time
 from .maps import *
 from .spec import *
@@ -31,9 +32,7 @@ class cluster_finder:
         self.rank = rank
         self.exp = self.data_file["experiment"]
 
-        if self.params_szifi["cosmology"] == "Planck15":
-
-            self.cosmology = cosmological_model(name="Planck15").cosmology
+        self.cosmology = cosmological_model(self.params_szifi).cosmology
 
         if self.params_szifi["detection_method"] == "DBSCAN":
 
@@ -125,6 +124,8 @@ class cluster_finder:
             #Inpaint point sources
 
             if self.params_szifi["inpaint"] == True:
+
+                t00 = time.time()
 
                 self.t_obs = diffusive_inpaint_freq(self.t_obs,self.mask_point,self.params_szifi["n_inpaint"])
 
@@ -227,6 +228,8 @@ class cluster_finder:
 
                     self.params_szifi["cmmf_type"] = "standard_mmf"
 
+                tt = time.time()
+
                 self.cmmf = scmmf_precomputation(pix=self.pix,
                 freqs=self.params_szifi["freqs"],
                 inv_cov=self.inv_cov,
@@ -250,8 +253,8 @@ class cluster_finder:
                 params=self.params_szifi,
                 params_model=self.params_model,
                 mask_map=self.mask_map,
-                mask_select_list=[self.mask_select,self.mask_select_no_tile],
-                mask_peak_finding_list=[self.mask_peak_finding,self.mask_peak_finding_no_tile],
+                mask_select_list=[self.mask_select_no_tile,self.mask_select],
+                mask_peak_finding_list=[self.mask_peak_finding_no_tile,self.mask_peak_finding],
                 rank=self.rank,
                 exp=self.exp,
                 cmmf=self.cmmf)
@@ -270,8 +273,8 @@ class cluster_finder:
 
                     results_list = self.filtered_maps.results_list
 
-                    self.results.catalogues["catalogue_find_" + str(i)] = results_list[0]
-                    results_for_masking = results_list[1]
+                    self.results.catalogues["catalogue_find_" + str(i)] = results_list[1]
+                    results_for_masking = results_list[0]
 
                     if self.rank == 0:
 
@@ -461,6 +464,8 @@ class filter_maps:
                     nfw = gnfw(M_500,z,self.cosmology,
                     type=self.params_model["profile_type"])
 
+
+
                     t_tem,t_tem_nc = nfw.get_t_map_convolved(self.pix,
                     self.exp,
                     beam=self.params["beam"],
@@ -470,6 +475,8 @@ class filter_maps:
                     sed=False)
 
                     t_tem = t_tem/nfw.get_y_norm(self.params["norm_type"])
+
+                    #np.save("/rds-d4/user/iz221/hpc-work/snr_maps/tem_" + str(j) + ".npy",t_tem)
 
                     t_tem_nc = select_freqs(t_tem_nc,self.params["freqs"])
                     tem_nc = filter_tmap(t_tem_nc,self.pix,self.params["lrange"])/nfw.get_y_norm(self.params["norm_type"])
@@ -486,7 +493,12 @@ class filter_maps:
 
                 if self.params["save_snr_maps"] == True:
 
-                    np.save(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_list[0])
+                    theta_id_save = self.params["theta_id_save"]
+
+                    if self.i_it > 0 and j in theta_id_save:
+
+                        np.save(self.params["snr_maps_path"] + "/" + self.params["snr_maps_name"] + "_q_" + str(self.i_it) + "_" + str(j) + ".npy",q_map*self.mask_select_list[0])
+                        print("Saved",j, flush=True)
 
                 self.q_tensor[:,:,j,k] = q_map
                 self.y_tensor[:,:,j,k] = y_map
@@ -530,6 +542,10 @@ class filter_maps:
             cat_new = apply_mask_select(cat_new,self.mask_select_list[i],self.pix)
             self.results_list.append(cat_new)
 
+            print("mean mask",np.mean(self.mask_select_list[i]))
+
+            print("catalogue",i,cat_new.catalogue["q_opt"] )
+
         return 0
 
     #Apply MMF for input catalogue
@@ -552,10 +568,43 @@ class filter_maps:
 
         t_true_unmasked = t_true
 
+        cmmf = self.cmmf
+        cmmf_base = copy.deepcopy(cmmf)
+
         for i in range(0,n_clus):
 
             z = 0.2 #true_catalogue.z[i]
             M_500 = get_m_500(true_catalogue.catalogue["theta_500"][i],z,self.cosmology)
+
+            T = None
+
+            if self.params["rSZ"] == True:
+
+                tsz_sed_model = tsz_model(T_e=true_catalogue.catalogue["T"][i])
+
+                if self.params["integrate_bandpass"] == True:
+
+                    tsz_sed = tsz_sed_model.get_sed_exp_bandpass(self.exp)
+
+                elif self.params["integrate_bandpass"] == False:
+
+                    tsz_sed = tsz_sed_model.get_sed(self.exp.nu_eff)
+
+                tsz_sed = tsz_sed[self.params["freqs"]]
+
+                a_matrix = self.params["a_matrix"][self.params["freqs"],:]
+                a_matrix[:,0] = tsz_sed
+
+                cmmf = scmmf_precomputation(pix=self.pix,
+                freqs=self.params["freqs"],
+                inv_cov=self.inv_cov,
+                lrange=self.params["lrange"],
+                beam_type=self.params["beam"],
+                exp=self.exp,
+                cmmf_type=self.params["cmmf_type"],
+                a_matrix=a_matrix,
+                comp_to_calculate=self.params["comp_to_calculate"],
+                mmf_type=self.params["mmf_type"])
 
             q_extracted,y0_extracted,q_map = extract_at_input_value(t_true,
             self.inv_cov,
@@ -570,18 +619,20 @@ class filter_maps:
             self.params["lrange"],
             apod_type=self.params["apod_type"],
             mmf_type=self.params["mmf_type"],
-            cmmf_prec=self.cmmf,
+            cmmf_prec=cmmf,
             freqs=self.params["freqs"],
             exp=self.exp,
             comp_to_calculate=self.params["comp_to_calculate"],
-            profile_type=self.params_model["profile_type"])
+            profile_type=self.params_model["profile_type"],
+            T=T,
+            )
 
             q_opt[i,:] = q_extracted
             y0_est[i,:] = y0_extracted
 
             if self.rank == 0:
 
-                print("theta_500",true_catalogue.catalogue["theta_500"][i])
+                print("theta_500",true_catalogue.catalogue["theta_500"][i],"SNR",q_extracted)
 
         catalogue_at_true_values = cluster_catalogue()
 
@@ -607,7 +658,7 @@ class filter_maps:
 
 def extract_at_input_value(t_true,inv_cov,pix,beam,M_500,z,cosmology,norm_type,
 theta_x,theta_y,lrange,apod_type=None,mmf_type=None,cmmf_prec=None,
-freqs=None,exp=None,comp_to_calculate=None,profile_type=None):
+freqs=None,exp=None,comp_to_calculate=None,profile_type=None,T=None):
 
     nfw = gnfw(M_500,z,cosmology,type=profile_type)
 
@@ -618,7 +669,14 @@ freqs=None,exp=None,comp_to_calculate=None,profile_type=None):
     q_opt = np.zeros(len(comp_to_calculate))
     y0_est = np.zeros(len(comp_to_calculate))
 
-    tem,tem_nc = nfw.get_t_map_convolved(pix,exp,beam=beam,get_nc=True,sed=False)
+    if T is None:
+
+        tem,tem_nc = nfw.get_t_map_convolved(pix,exp,beam=beam,get_nc=True,sed=False)
+
+    else:
+
+        tem,tem_nc = nfw.get_t_map_convolved(pix,exp,beam=beam,get_nc=True,sed=False)
+
     tem = tem/nfw.get_y_norm(norm_type)
     tem_nc = tem_nc/nfw.get_y_norm(norm_type)
     tem = select_freqs(tem,freqs)
@@ -748,7 +806,6 @@ mmf_type="standard",cmmf_prec=None,tem_nc=None,comp=0):
         theta_misc_template=theta_misc_template,mmf_type=mmf_type,cmmf_prec=cmmf_prec,
         tem_nc=tem_nc,comp=comp)
 
-
     return q_map,y_map,std
 
 def get_mmf_q_map_s(tmap,tem,inv_cov,pix,theta_misc_template=[0.,0.],
@@ -756,7 +813,7 @@ mmf_type="standard",cmmf_prec=None,tem_nc=None,comp=0):
 
     n_freqs = tmap.shape[2]
     y_map = np.zeros((pix.nx,pix.ny))
-    norm_map = np.zeros((pix.nx,pix.ny))
+    #norm_map = np.zeros((pix.nx,pix.ny))
 
     tem_fft = get_fft_f(tem,pix)
 
@@ -770,15 +827,26 @@ mmf_type="standard",cmmf_prec=None,tem_nc=None,comp=0):
 
     tem = get_tmap_times_fvec(tem,cmmf_prec.a_matrix[:,comp]).real #new line
 
+    #mask = get_apodised_mask(pix,np.ones((pix.nx,pix.nx)),apotype="Smooth",aposcale=0.2)
+
     for i in range(n_freqs):
 
         y = sg.fftconvolve(tmap[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
-        norm = sg.fftconvolve(tem[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
+        #norm = sg.fftconvolve(tem[:,:,i],filter[:,:,i],mode='same')*pix.dx*pix.dy
+
+        # y = get_ifft(get_fft(tmap[:,:,i]*mask,pix)*get_fft(filter[:,:,i]*mask,pix),pix).real#*pix.dx*pix.dy
+        # norm = get_ifft(get_fft(tem[:,:,i]*mask,pix)*get_fft(filter[:,:,i]*mask,pix),pix).real#*pix.dx*pix.dy
+
+        # y = get_ifft(tmap[:,:,i]*filter[:,:,i],pix).real#*pix.dx*pix.dy
+        # norm = get_ifft(tem[:,:,i]*filter[:,:,i],pix).real#*pix.dx*pix.dy
+
 
         y_map += y
-        norm_map += norm
+        #norm_map += norm
 
-    norm = np.max(norm_map)
+    norm = np.sum(tem*filter)*pix.dx*pix.dy
+
+    #norm = np.max(norm_map)
     y_map = y_map/norm
 
     std = 1./np.sqrt(norm)
@@ -825,81 +893,85 @@ class scmmf_precomputation:
     #sed's in muK
 
     def __init__(self,pix=None,freqs=None,inv_cov=None,lrange=[0,1000000],beam_type="gaussian",exp=None,
-    mask=None,cmmf_type="one_dep",a_matrix=None,n_dep=1,comp_to_calculate=[0],mmf_type="standard_mmf"):
+    mask=None,cmmf_type="one_dep",a_matrix=None,n_dep=1,comp_to_calculate=[0],mmf_type="standard"):
 
         self.cmmf_type = cmmf_type
         self.a_matrix = a_matrix
 
-        if mask is None:
-
-            mask = np.ones((pix.nx,pix.ny,len(freqs)))
-
-        if self.cmmf_type == "one_dep" and mmf_type == "spectrally_constrained":
-
-            self.sed_a = a_matrix[:,0][freqs]
-            self.sed_b = a_matrix[:,1][freqs]
-
-            a_map_fft = np.ones((pix.nx,pix.nx,len(freqs)))
-            a_map_fft = get_tmap_times_fvec(a_map_fft,self.sed_a)
-
-            a_map_fft = get_map_convolved_fft(a_map_fft,pix,freqs,beam_type,mask,lrange,exp)
-
-            b_map_fft = np.ones((pix.nx,pix.nx,len(freqs)))
-            b_map_fft = get_tmap_times_fvec(b_map_fft,self.sed_b)
-
-            b_map_fft = get_map_convolved_fft(b_map_fft,pix,freqs,beam_type,mask,lrange,exp)
-
-            self.a_dot_b = get_inv_cov_dot(np.conjugate(a_map_fft),inv_cov,b_map_fft)
-            self.b_dot_b = get_inv_cov_dot(np.conjugate(b_map_fft),inv_cov,b_map_fft)
-
-        elif self.cmmf_type == "general" and mmf_type == "spectrally_constrained":
-
-            #a_matrix is f x c matrix (f number of frequencies, c number of components, 1st SZ, rest to deproject)
-
-            a_matrix_fft = np.zeros((pix.nx,pix.nx,len(freqs),self.a_matrix.shape[1]))
-
-            for i in range(0,a_matrix.shape[1]):
-
-                a_matrix_fft_i = np.ones((pix.nx,pix.nx,len(freqs)))
-                a_matrix_fft_i = get_tmap_times_fvec(a_matrix_fft_i,self.a_matrix[freqs,i])
-                a_matrix_fft[:,:,:,i] = get_map_convolved_fft(a_matrix_fft_i,pix,freqs,beam_type,mask,lrange,exp)
-                #a_matrix_fft[:,:,:,i] = a_matrix_fft_i
-
-            self.a_matrix_fft = a_matrix_fft
-
-            pre = np.einsum('abcd,abde->abce',inv_cov,a_matrix_fft)
-            dot = invert_cov(np.einsum('abdc,abde->abce',a_matrix_fft,pre))
-            self.W = np.einsum('abcd,abed->abce',dot,pre)
-            cov = invert_cov(inv_cov)
-
-            t0 = time.time()
-
-            self.w_list = []
-            self.sigma_y_list = []
-            self.w_norm_list = []
-
-            for i in range(0,len(comp_to_calculate)):
-
-                e_map = np.zeros((pix.nx,pix.nx,self.a_matrix.shape[1]))
-                e_map[:,:,comp_to_calculate[i]] = 1.
-
-                w = np.einsum('ija,ijab->ijb',e_map,self.W)
-
-                sigma_y = get_inv_cov_dot(np.conjugate(w),cov,w)
-
-                w_norm = np.zeros(w.shape)
-
-                for i in range(0,len(freqs)):
-
-                    w_norm[:,:,i] = w[:,:,i]/sigma_y
-
-                self.w_list.append(w)
-                self.sigma_y_list.append(sigma_y)
-                self.w_norm_list.append(w_norm)
-
-        elif mmf_type == "standard":
+        if mmf_type == "standard":
 
             r = 1.
+
+        else:
+
+            if mask is None:
+
+                mask = np.ones((pix.nx,pix.ny,len(freqs)))
+
+            if self.cmmf_type == "one_dep" and mmf_type == "spectrally_constrained":
+
+                self.sed_a = a_matrix[:,0][freqs]
+                self.sed_b = a_matrix[:,1][freqs]
+
+                a_map_fft = np.ones((pix.nx,pix.nx,len(freqs)))
+                a_map_fft = get_tmap_times_fvec(a_map_fft,self.sed_a)
+
+                a_map_fft = get_map_convolved_fft(a_map_fft,pix,freqs,beam_type,mask,lrange,exp)
+
+                b_map_fft = np.ones((pix.nx,pix.nx,len(freqs)))
+                b_map_fft = get_tmap_times_fvec(b_map_fft,self.sed_b)
+
+                b_map_fft = get_map_convolved_fft(b_map_fft,pix,freqs,beam_type,mask,lrange,exp)
+
+                self.a_dot_b = get_inv_cov_dot(np.conjugate(a_map_fft),inv_cov,b_map_fft)
+                self.b_dot_b = get_inv_cov_dot(np.conjugate(b_map_fft),inv_cov,b_map_fft)
+
+            elif self.cmmf_type == "general" and mmf_type == "spectrally_constrained":
+
+                #a_matrix is f x c matrix (f number of frequencies, c number of components, 1st SZ, rest to deproject)
+
+                a_matrix_fft = np.zeros((pix.nx,pix.nx,len(freqs),self.a_matrix.shape[1]))
+
+                for i in range(0,a_matrix.shape[1]):
+
+                    a_matrix_fft_i = np.ones((pix.nx,pix.nx,len(freqs)))
+                    a_matrix_fft_i = get_tmap_times_fvec(a_matrix_fft_i,self.a_matrix[freqs,i])
+                    a_matrix_fft[:,:,:,i] = get_map_convolved_fft(a_matrix_fft_i,pix,freqs,beam_type,mask,lrange,exp)
+                    #a_matrix_fft[:,:,:,i] = a_matrix_fft_i
+
+                self.a_matrix_fft = a_matrix_fft
+
+                pre = np.einsum('abcd,abde->abce',inv_cov,a_matrix_fft)
+                dot = invert_cov(np.einsum('abdc,abde->abce',a_matrix_fft,pre))
+                self.W = np.einsum('abcd,abed->abce',dot,pre)
+                cov = invert_cov(inv_cov)
+
+                t0 = time.time()
+
+                self.w_list = []
+                self.sigma_y_list = []
+                self.w_norm_list = []
+
+                for i in range(0,len(comp_to_calculate)):
+
+                    e_map = np.zeros((pix.nx,pix.nx,self.a_matrix.shape[1]))
+                    e_map[:,:,comp_to_calculate[i]] = 1.
+
+                    w = np.einsum('ija,ijab->ijb',e_map,self.W)
+
+                    sigma_y = get_inv_cov_dot(np.conjugate(w),cov,w)
+
+                    w_norm = np.zeros(w.shape)
+
+                    for i in range(0,len(freqs)):
+
+                        w_norm[:,:,i] = w[:,:,i]/sigma_y
+
+                    self.w_list.append(w)
+                    self.sigma_y_list.append(sigma_y)
+                    self.w_norm_list.append(w_norm)
+
+
 
 def get_a_matrix_cib(params_szifi,params_model,data_file):
 
