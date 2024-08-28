@@ -2,7 +2,7 @@ import numpy as np
 import healpy as hp
 from astropy import units as u
 from astropy.coordinates import SkyCoord
-from .maps import *
+from szifi import maps
 
 def get_cutout(hp_map,lonlat,nx,l,coord_type="G"):
 
@@ -133,7 +133,7 @@ def deprojector(map_projected,pix,i_tile,nside_tile,nside_map):
 
         for j in range(0,pix.ny):
 
-            theta_x,theta_y = get_theta_from_ij(i,j,pix)
+            theta_x,theta_y = maps.get_theta_from_ij(i,j,pix)
             theta_x = (theta_x- pix.nx*pix.dx*0.5)/(np.pi/180.)
             theta_y = (theta_y- pix.ny*pix.dy*0.5)/(np.pi/180.)
             lon,lat = proj.xy2ang(theta_x,theta_y,lonlat=True)

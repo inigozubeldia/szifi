@@ -13,6 +13,9 @@ params_szifi_default = {
 "decouple_type": "master", # "master", "none", or "fsky"
 "save_coupling_matrix": False, #if True, the power spectra coupling matrix is saved (old save_mask)
 "compute_coupling_matrix": False, #if True, the coupling matrix is computed from scratch, otherwise it is loaded
+"powspec_lmax1d": None, # maximum lmax for power spectra. Maps and masks will be degraded to this lmax before computing coupling matrix and power spectra
+"powspec_new_shape": None, # New shape for calculating powspec on lower resolution map. One of this and powspec_lmax1d must be 'None'
+"powspec_bin_fac": 4, # Factor by which to bin Cls. There will be nx/bin_fac bins of width bin_fac * (pi/(nx*dx)) for a field of nx^2 pixels
 
 "lrange": [100,2500], #ell range to be used in the analysis, if None all the modes are used
 "freqs": [0,1,2,3,4,5], #Frequency channels to be used in the analysis

@@ -1,13 +1,11 @@
 import numpy as np
 import healpy as hp
 from astropy.io import fits
-from .params import *
-from .maps import *
-from .sed import *
+from szifi import params, sed
 
 class experiment:
 
-    def __init__(self,experiment_name,params_szifi=params_szifi_default):
+    def __init__(self,experiment_name,params_szifi=params.params_szifi_default):
 
         self.experiment_name = experiment_name
         self.params_szifi = params_szifi
@@ -30,7 +28,7 @@ class experiment:
 
             self.tsz_sed_paper = np.array([1./(-0.24815),1./(-0.35923),1./5.152,1./0.161098,1./0.06918,1./0.038])*1e6 #tSZ signature in muK
 
-            tsz_sed_model = tsz_model()
+            tsz_sed_model = sed.tsz_model()
             self.tsz_sed = tsz_sed_model.get_sed_exp_bandpass(self)
             self.bandpass_file = fits.open(params_szifi["path"] + "data/HFI_RIMO_Beams-075pc_R2.00.fits")
 
@@ -42,7 +40,7 @@ class experiment:
             self.MJysr2muK = np.array([4.1877e3,2.632e3,2.0676e3,3.371e3,1.7508e4,6.9653e5])
 
             self.tsz_sed_old = np.array([-4.1103e6,-2.8355e6,-2.1188e4,6.1071e6,1.5257e7,3.0228e7])
-            self.tsz_sed = tsz_model().get_sed(self.nu_eff)
+            self.tsz_sed = sed.tsz_model().get_sed(self.nu_eff)
 
         if self.experiment_name == "Planck_simple":
 

@@ -1,7 +1,6 @@
 import numpy as np
-import pylab as pl
 import healpy as hp
-from .model import *
+from szifi import model
 import time
 
 class catalogue_painter:
@@ -50,7 +49,7 @@ class catalogue_painter:
 
             print("Mass",m[i])
 
-            cluster = gnfw(m[i]/1e15,redshift[i],self.cosmology,type="arnaud")
+            cluster = model.gnfw(m[i]/1e15,redshift[i],self.cosmology,type="arnaud")
 
             theta,tsz_vec = cluster.get_t_vec_convolved_hankel(self.pix,self.exp,beam_type=beam_type)
 

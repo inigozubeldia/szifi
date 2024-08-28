@@ -1,6 +1,7 @@
 import numpy as np
 from numba import jit
-from .mmf import *
+from szifi import maps, mmf
+import scipy.signal as sg
 
 #Various utility functions
 
@@ -8,8 +9,8 @@ from .mmf import *
 
 def get_q_bias(pix,tem,signal,cov_mf_true,cov_noi_true,n_modes_per_bin_map,type="q"):
 
-    tem_fft = get_fft(tem,pix)
-    signal_fft = get_fft(signal,pix)
+    tem_fft = maps.get_fft(tem,pix)
+    signal_fft = maps.get_fft(signal,pix)
 
     n0 = filter_sum_1(tem_fft,tem_fft,cov_mf_true)
 
@@ -37,8 +38,8 @@ def get_q_bias(pix,tem,signal,cov_mf_true,cov_noi_true,n_modes_per_bin_map,type=
 
 def get_q_std_bias(pix,tem,signal,cov_mf_true,cov_noi_true):
 
-    tem_fft = get_fft(tem,pix)
-    signal_fft = get_fft(signal,pix)
+    tem_fft = maps.get_fft(tem,pix)
+    signal_fft = maps.get_fft(signal,pix)
     n0 = filter_sum_1(tem_fft,tem_fft,cov_mf_true)
     n_bias = filter_sum_1(tem_fft,tem_fft*cov_noi_true,(cov_mf_true)**2)
     n_bias = filter_sum_1(tem_fft,tem_fft*cov_noi_true,(cov_mf_true)**2)
@@ -60,16 +61,16 @@ cmmf_prec=None):
     y_map = np.zeros((pix.nx,pix.ny))
     norm_map = np.zeros((pix.nx,pix.ny))
 
-    tem_fft = get_fft_f(tem,pix)
+    tem_fft = maps.get_fft_f(tem,pix)
     tem_fft = tem_fft
 
-    tem = get_ifft_f(filter_fft_f(tem_fft,pix,ell_filter),pix).real
+    tem = maps.get_ifft_f(maps.filter_fft_f(tem_fft,pix,ell_filter),pix).real
 
     y0_vec = np.zeros(nfreq+1)
     std_vec = np.zeros(nfreq+1)
 
-    filter_fft = get_tem_conv_fft(pix,tem_fft,inv_cov,mmf_type=mmf_type,cmmf_prec=cmmf_prec)
-    filter_fft = filter_fft_f(filter_fft,pix,ell_filter)
+    filter_fft = mmf.get_tem_conv_fft(pix,tem_fft,inv_cov,mmf_type=mmf_type,cmmf_prec=cmmf_prec)
+    filter_fft = maps.filter_fft_f(filter_fft,pix,ell_filter)
 
     for i in range(nfreq):
 
@@ -95,8 +96,8 @@ cmmf_prec=None):
 
 def get_mf_map(obs,tem,noi,pix):
 
-    tem_fft = get_fft(tem,pix)
-    tem_conv = get_ifft(tem_fft/noi,pix).real
+    tem_fft = maps.get_fft(tem,pix)
+    tem_conv = maps.get_ifft(tem_fft/noi,pix).real
 
     map_convolution = sg.fftconvolve(obs,tem_conv,mode='same')*pix.dx*pix.dy
     norm = np.max(sg.fftconvolve(tem,tem_conv,mode='same'))*pix.dx*pix.dy
@@ -137,8 +138,8 @@ def get_cmmf_std(pix,mmf_type,inv_cov,filter_fft,norm):
 
     filter_fft_2 = get_inv_cov_conjugate(filter_fft,cov)
 
-    filter_2 = get_ifft_f(filter_fft_2,pix).real
-    filter = get_ifft_f(filter_fft,pix).real
+    filter_2 = maps.get_ifft_f(filter_fft_2,pix).real
+    filter = maps.get_ifft_f(filter_fft,pix).real
 
     var_map = np.zeros((pix.nx,pix.ny),dtype=complex)
 
