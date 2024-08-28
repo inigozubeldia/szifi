@@ -105,7 +105,8 @@ class cluster_catalogue:
 
         return len(self.catalogue["q_opt"][np.where(self.catalogue["q_opt"] != -1.)[0]])
 
-def merge_detections(catalogue,radius_arcmin=10.,return_merge_flag=False,mode="closest"):
+def merge_detections(catalogue,radius_arcmin=10.,return_merge_flag=False,mode="closest",
+fac_theta_500=1.,merge_radius_type="theta_500"):
 
     catalogue = get_catalogue_indices(catalogue,np.where(catalogue.catalogue["q_opt"] != -1.)[0])
     n_clusters = len(catalogue.catalogue["q_opt"])
@@ -190,6 +191,101 @@ def merge_detections(catalogue,radius_arcmin=10.,return_merge_flag=False,mode="c
                     catalogue_new.catalogue[key] = np.array([catalogue.catalogue[key][index_max]])
 
             catalogue_merged.append(catalogue_new,append_keys="new")
+
+        ret = catalogue_merged
+
+    elif mode == "masking":
+
+        indices_sorted = np.argsort(catalogue.catalogue["q_opt"])[::-1]
+        catalogue = get_catalogue_indices(catalogue,indices_sorted)
+
+        i = 1
+
+        while i > 0:
+
+            if i > 1:
+
+                catalogue_new = get_catalogue_indices(catalogue,[0])
+                catalogue_merged.append(catalogue_new,append_keys="new")
+
+                lon1 = catalogue_new.catalogue["lon"][0]*np.ones(len(catalogue.catalogue["lon"]))
+                lat1 = catalogue_new.catalogue["lat"][0]*np.ones(len(catalogue.catalogue["lat"]))
+                lon2 = catalogue.catalogue["lon"]
+                lat2 = catalogue.catalogue["lat"]
+                coords1 = [lon1,lat1]
+                coords2 = [lon2,lat2]
+
+                distances = get_distance_sphere_lonlat(coords1,coords2)
+
+                if merge_radius_type == "fixed":
+
+                    indices_remove = np.where(distances < fac_theta_500)[0]
+
+                elif merge_radius_type == "theta_500":
+
+                    indices_remove = np.where(distances < fac_theta_500*catalogue_new.catalogue["theta_500"][0])[0]
+
+                catalogue = remove_catalogue_indices(catalogue,indices_remove)
+
+            elif i == 1:
+
+                catalogue_new = get_catalogue_indices(catalogue,[0])
+                catalogue_merged.append(catalogue_new,append_keys="new")
+                indices_remove = [0]
+                catalogue = remove_catalogue_indices(catalogue,indices_remove)
+
+            i = len(catalogue.catalogue["lon"])
+
+            if i == 0:
+
+                break
+
+        #    print(i,len(indices_remove),catalogue_merged.catalogue["q_opt"])
+
+        ret = catalogue_merged
+
+    elif mode == "masking_max":
+
+        indices_sorted = np.argsort(catalogue.catalogue["q_opt"])[::-1]
+        catalogue = get_catalogue_indices(catalogue,indices_sorted)
+
+        i = 1
+
+        while i > 0:
+
+            if i > 1:
+
+                catalogue_new = get_catalogue_indices(catalogue,[0])
+                catalogue_merged.append(catalogue_new,append_keys="new")
+
+                lon1 = catalogue_new.catalogue["lon"][0]*np.ones(len(catalogue.catalogue["lon"]))
+                lat1 = catalogue_new.catalogue["lat"][0]*np.ones(len(catalogue.catalogue["lat"]))
+                lon2 = catalogue.catalogue["lon"]
+                lat2 = catalogue.catalogue["lat"]
+                coords1 = [lon1,lat1]
+                coords2 = [lon2,lat2]
+
+                distances = get_distance_sphere_lonlat(coords1,coords2)
+
+                masking_radius = np.max([fac_theta_500*catalogue_new.catalogue["theta_500"][0],radius_arcmin])
+                indices_remove = np.where(distances < masking_radius)[0]
+
+                catalogue = remove_catalogue_indices(catalogue,indices_remove)
+
+            elif i == 1:
+
+                catalogue_new = get_catalogue_indices(catalogue,[0])
+                catalogue_merged.append(catalogue_new,append_keys="new")
+                indices_remove = [0]
+                catalogue = remove_catalogue_indices(catalogue,indices_remove)
+
+            i = len(catalogue.catalogue["lon"])
+
+            if i == 0:
+
+                break
+
+        #    print(i,len(indices_remove),catalogue_merged.catalogue["q_opt"])
 
         ret = catalogue_merged
 
@@ -325,6 +421,15 @@ def apply_mask_select_fullsky(cat,mask_select):
     indices = np.where(mask_values != 0.)[0]
 
     return get_catalogue_indices(cat,indices)
+
+def get_indices_mask_select_fullsky(cat,mask_select):
+
+    nside = hp.npix2nside(len(mask_select))
+    pixs = hp.ang2pix(nside,cat.catalogue["lon"],cat.catalogue["lat"],lonlat=True)
+    mask_values = mask_select[pixs]
+    indices = np.where(mask_values != 0.)[0]
+
+    return indices
 
 def get_catalogue_sky_selected(cat,theta_x_range,theta_y_range=None):
 
@@ -630,6 +735,7 @@ class results_detection:
 
                 if key in self.catalogues:
 
+
                     self.catalogues[key].append(results_new.catalogues[key],append_keys="new")
 
                 else:
@@ -694,7 +800,8 @@ def get_random_location_tile(mask,pix,n_points):
 
 class master_catalogue:
 
-    def __init__(self,catalogue,catalogue_name,id_radius_arcmin=None,id_mode=None,unique=None,sort=None,masks=None):
+    def __init__(self,catalogue,catalogue_name,id_radius_arcmin=None,id_mode=None,
+    unique=None,sort=None,masks=None,find_label=True):
 
         #catalogue should have no -1 values
 
@@ -703,6 +810,7 @@ class master_catalogue:
         self.unique = unique
         self.sort = sort
         self.masks = masks
+        self.find_label = find_label
 
         self.sigma_matrices = {}
         self.skyfracs = {}
@@ -727,8 +835,15 @@ class master_catalogue:
 
         self.individual_catalogues.append(catalogue_name_in)
 
-        catalogue_master_id,catalogue_in_id = identify_clusters(self.catalogue_master,catalogue_in,
-        lonlat=True,id_radius_arcmin=self.id_radius_arcmin,mode=self.id_mode,unique=self.unique,sort=self.sort)
+        if self.find_label is True:
+
+            catalogue_master_id,catalogue_in_id = identify_clusters(self.catalogue_master,catalogue_in,
+            lonlat=True,id_radius_arcmin=self.id_radius_arcmin,mode=self.id_mode,unique=self.unique,sort=self.sort)
+
+        elif self.find_label is False:
+
+            catalogue_master_id = self.catalogue_master
+            catalogue_in_id = catalogue_in
 
         indices_null = np.where(catalogue_master_id.catalogue["index"] == -1)[0]
         indices_pos = np.where(catalogue_master_id.catalogue["index"] > -1)[0]
@@ -759,6 +874,12 @@ class master_catalogue:
 
         self.catalogue_master = apply_mask_select_fullsky(self.catalogue_master,mask)
 
+    def add_mask_index(self,mask):
+
+        self.catalogue_master.catalogue["cosmology_mask"] = -np.ones(len(self.catalogue_master.catalogue["lon"]))
+
+        indices = get_indices_mask_select_fullsky(self.catalogue_master,mask)
+        self.catalogue_master.catalogue["cosmology_mask"][indices] = np.ones(len(indices))
 
 class detection_processor:
 
@@ -791,9 +912,13 @@ class detection_processor:
 
                 for cat_key in cat_keys:
 
-                    results_dict[field_id].catalogues[cat_key[0:-1] + "1"] = results_dict[field_id].catalogues[cat_key]
+                #    print(field_id,cat_key)
 
+                    results_dict[field_id].catalogues[cat_key[0:-1] + "1"] = results_dict[field_id].catalogues[cat_key]
+                    del results_dict[field_id].catalogues[cat_key]
             self.results.append(results_dict[field_id])
+
+        #    print(results_dict[field_id].catalogues)
 
             i = i + 1
 

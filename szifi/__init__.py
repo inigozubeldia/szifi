@@ -8,4 +8,5 @@ from .data import *
 from .params import *
 from .utils import *
 from .cat import *
+from .paint import *
 from .sed import *

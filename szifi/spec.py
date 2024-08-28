@@ -2,7 +2,7 @@ import numpy as np
 import os
 from scipy import interpolate
 import pymaster as nmt
-from szifi import maps
+from szifi import maps, sed
 
 class power_spectrum:
 
@@ -442,7 +442,7 @@ class cross_spec_theory:
                     factor = ell_cib*(ell_cib+1.)/(2.*np.pi)
                     cl_cib = cl_cib/factor
 
-                    cl_cib_muK = np.interp(self.ell,ell_cib,cl_cib)*1e-12*MJysr_to_muK_factor(self.exp.nu_eff[self.freqs[i]])*MJysr_to_muK_factor(self.exp.nu_eff[self.freqs[j]])
+                    cl_cib_muK = np.interp(self.ell,ell_cib,cl_cib)*1e-12*sed.MJysr_to_muK(self.exp.nu_eff[self.freqs[i]])*sed.MJysr_to_muK(self.exp.nu_eff[self.freqs[j]])
 
                     cib_tensor[:,i,j] = cib_tensor[:,i,j] + cl_cib_muK
 
@@ -466,7 +466,7 @@ class cross_spec_theory:
                     factor = ell_cib*(ell_cib+1.)/(2.*np.pi)
                     cl_cib = cl_cib/factor
 
-                    cl_tsz_cib_muK = np.interp(self.ell,ell_cib,cl_cib)*1e-12*MJysr_to_muK_factor(self.exp.nu_eff[self.freqs[i]])*self.exp.tsz_f_nu[self.freqs[j]]
+                    cl_tsz_cib_muK = np.interp(self.ell,ell_cib,cl_cib)*1e-12*sed.MJysr_to_muK(self.exp.nu_eff[self.freqs[i]])*self.exp.tsz_f_nu[self.freqs[j]]
 
                     cross_matrix[:,i,j] = cl_tsz_cib_muK
 
@@ -517,3 +517,27 @@ def get_beam_tensor(ell,exp,freqs,beam_type="gaussian"):
                  beam_tensor[:,i,j] = np.interp(ell,ell_i,beam_i)*np.interp(ell,ell_j,beam_j)
 
     return beam_tensor
+
+class ps_flat_sky:
+    def __init__(self,pix,mask,ell_bins_edges=None,fac=4):
+        self.pix = pix
+        self.mask = mask
+        Lx = pix.nx*pix.dx
+        Ly = Lx
+        if ell_bins_edges == None:
+            l0_bins = np.arange(pix.nx/fac)*fac*np.pi/(pix.nx*pix.dx)
+            lf_bins = (np.arange(pix.nx/fac)+1)*fac*np.pi/(pix.nx*pix.dx)
+            bins = nmt.NmtBinFlat(l0_bins, lf_bins)
+            ells_uncoupled = bins.get_effective_ells()
+            self.bins = bins
+        f0 = nmt.NmtFieldFlat(Lx, Ly, mask,[np.zeros((self.pix.nx,self.pix.ny))])
+        w00 = nmt.NmtWorkspaceFlat()
+        w00.compute_coupling_matrix(f0,f0,self.bins)
+        self.w00 = w00
+        self.ells_uncoupled = ells_uncoupled
+    def get_ps(self,map,decouple=True):
+        f1 = nmt.NmtFieldFlat(self.pix.nx*self.pix.dx,self.pix.ny*self.pix.dy,self.mask,[map])
+        cl00_coupled = nmt.compute_coupled_cell_flat(f1,f1,self.bins)
+        if decouple == True:
+            cl_uncoupled = self.w00.decouple_cell(cl00_coupled)[0]
+        return self.ells_uncoupled,cl_uncoupled

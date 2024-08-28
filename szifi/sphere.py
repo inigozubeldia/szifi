@@ -63,11 +63,12 @@ def get_lonlat(i,theta_x,theta_y,n_side):
 
 #theta_x, theta_y returned in rad
 
-def get_xy(i,lon,lat,n_side):
+def get_xy(i,lon,lat,n_side,lonlat=True):
 
-    lon_c,lat_c = hp.pix2ang(n_side,i,lonlat=True)
+    lon_c,lat_c = hp.pix2ang(n_side,i,lonlat=lonlat)
     proj2 = hp.projector.CartesianProj(rot=(lon_c,lat_c,0.))
-    theta_x,theta_y = proj2.ang2xy(lon,lat,lonlat=True)
+    theta_x,theta_y = proj2.ang2xy(lon,lat,lonlat=lonlat)
+
     theta_x = theta_x*np.pi/180.
     theta_y = theta_y*np.pi/180.
 

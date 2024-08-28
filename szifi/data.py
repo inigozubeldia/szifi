@@ -27,6 +27,8 @@ class input_data:
         self.data["mask_ps"] = {}
         self.data["mask_peak_finding"] = {}
         self.data["mask_peak_finding_no_tile"] = {}
+        self.data["mask_tile"] = {}
+
         self.data["pix"] = {}
 
         self.data["coupling_matrix_name"] = {}
@@ -54,7 +56,7 @@ class input_data:
 
                 #Fields
 
-                [tmap] = np.load(path + "planck_field_" + str(field_id) + "_tmap.npy")
+                [tmap] = np.load(path + "planck_maps/planck_field_" + str(field_id) + "_tmap.npy")
                 tmap[:,:,4] = tmap[:,:,4]/58.04
                 tmap[:,:,5] = tmap[:,:,5]/2.27
                 tmap = tmap*1e6
@@ -66,7 +68,7 @@ class input_data:
 
                 buffer_arcmin = 10. #usually around twice the beam
 
-                [mask_galaxy,mask_point,mask_tile] = np.load(path + "planck_field_" + str(field_id) + "_mask.npy")
+                [mask_galaxy,mask_point,mask_tile] = np.load(path + "planck_maps/planck_field_" + str(field_id) + "_mask.npy")
 
                 mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
                 mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
@@ -77,6 +79,7 @@ class input_data:
                 mask_select = mask_select_no_tile*mask_tile
                 mask_select = maps.get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile,criterion=params_szifi["min_ftile"])
 
+                print("mask select",np.mean(mask_select))
                 self.data["mask_point"][field_id] = mask_point
                 self.data["mask_select"][field_id] = mask_select
                 self.data["mask_select_no_tile"][field_id] = mask_select_no_tile
@@ -84,17 +87,17 @@ class input_data:
                 self.data["mask_ps"][field_id] = mask_ps
                 self.data["mask_peak_finding_no_tile"][field_id] = mask_peak_finding_no_tile
                 self.data["mask_peak_finding"][field_id] = mask_peak_finding
-
+                self.data["mask_tile"][field_id] = mask_tile
                 #Coupling matrix
 
                 if np.array_equal(mask_ps, maps.get_apodised_mask(self.pix,np.ones((self.nx,self.nx)),
                 apotype="Smooth",aposcale=0.2)):
 
-                     cm_name = path + "apod_smooth_1024.fits"
+                     cm_name = path + "coupling_matrices_planck/apod_smooth_1024.fits"
 
                 else:
 
-                    cm_name = path + "apod_smooth_" + str(field_id) + ".fits"
+                    cm_name = path + "coupling_matrices_planck/apod_smooth_" + str(field_id) + ".fits"
 
                 self.data["coupling_matrix_name"][field_id] = cm_name
 
@@ -185,6 +188,7 @@ class input_data:
                 self.data["mask_ps"][field_id] = mask_ps
                 self.data["mask_peak_finding_no_tile"][field_id] = mask_peak_finding_no_tile
                 self.data["mask_peak_finding"][field_id] = mask_peak_finding
+                self.data["mask_tile"][field_id] = mask_tile
 
                 #Coupling matrix
 
@@ -209,12 +213,14 @@ class catalogue_data:
 
     def __init__(self,name,type=None,params_szifi=params.params_szifi_default):
 
-        path = params_szifi["path"] + "data/"
+        path = params_szifi["path_data"]
+
 
         if name == "Planck_SZ":
 
-            fit_union = fits.open('HFI_PCCS_SZ-union_R2.08.fits')
-            fit_mmf3 = fits.open('HFI_PCCS_SZ-MMF3_R2.08.fits')
+            threshold = 6.
+            fit_union = fits.open(path + 'HFI_PCCS_SZ-union_R2.08.fits')
+            fit_mmf3 = fits.open(path + 'HFI_PCCS_SZ-MMF3_R2.08.fits')
 
             data_union = fit_union[1].data
             data_mmf3 = fit_mmf3[1].data
@@ -328,6 +334,8 @@ class catalogue_data:
             self.ra = data["RADeg"]
             self.dec = data["decDeg"]
             self.redshift = data["redshift"]
+            self.M500 = data["M500c"]
+            self.SNR = data["SNR"]
 
             print(data.dtype.names)
 
@@ -355,6 +363,9 @@ class catalogue_data:
 
             self.catalogue.catalogue["lon"] = self.lon
             self.catalogue.catalogue["lat"] = self.lat
+            self.catalogue.catalogue["z"] = self.redshift
+            self.catalogue.catalogue["M500"] = self.M500
+            self.catalogue.catalogue["q_opt"] = self.SNR
 
             for i in range(0,len(keys_unique)):
 
@@ -388,3 +399,40 @@ class catalogue_data:
             self.catalogue.catalogue["lat"] = self.lat
             self.catalogue.catalogue["name"] = self.name
             self.catalogue.catalogue["q_opt"] = self.snr_planck
+
+        elif name == "SPTpol_500d":
+
+            cat_fits = fits.open(path + "SPTpol_500d_catalog_tablevOct3.fits")
+            data = cat_fits[1].data
+
+            print(data.dtype.names)
+
+            self.catalogue = cat.cluster_catalogue()
+            self.catalogue.catalogue["z"] = data["REDSHIFT"]
+            self.catalogue.catalogue["M500"] = data["M500"]
+            self.catalogue.catalogue["q_opt"] = data["XI"]
+
+
+        elif name == "SPT_2500d":
+
+            cat_fits = fits.open(path + "2500d_cluster_sample_Bocquet19.fits")
+            data = cat_fits[1].data
+
+            print(data.dtype.names)
+
+            self.catalogue = cat.cluster_catalogue()
+            self.catalogue.catalogue["z"] = data["REDSHIFT"]
+            self.catalogue.catalogue["M500"] = data["M500"]
+            self.catalogue.catalogue["q_opt"] = data["XI"]
+
+        elif name == "SPTpol_ECS":
+
+            cat_fits = fits.open(path + "sptecs_catalog_oct919.fits")
+            data = cat_fits[1].data
+
+            print(data.dtype.names)
+
+            self.catalogue = cat.cluster_catalogue()
+            self.catalogue.catalogue["z"] = data["REDSHIFT"]
+            self.catalogue.catalogue["M500"] = data["M500"]
+            self.catalogue.catalogue["q_opt"] = data["XI"]

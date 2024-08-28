@@ -24,8 +24,8 @@ class gnfw:
         const = constants()
         self.rho_c = cosmology.critical_density(self.z_halo).value*1000.*const.mpc**3/const.solar
         self.R_Delta = (3./4.*self.M/self.rho_c/self.Delta/np.pi)**(1./3.)
-        self.chi = cosmology.comoving_distance(self.z_halo).value #In Mpc
-        self.d_ad = self.chi/(1.+z_halo)
+        #self.chi = cosmology.comoving_distance(self.z_halo).value #In Mpc
+        self.d_ad = cosmology.angular_diameter_distance(self.z_halo).value
 
         self.theta_Delta = self.R_Delta/self.d_ad
         self.theta_Delta_arcmin = self.theta_Delta/np.pi*180.*60.
@@ -242,7 +242,7 @@ class gnfw:
 
         theta_range = [pix.dx/20.,self.theta_Delta*self.my_params_sz.R_truncation*10.]
 
-        rht = maps.RadialFourierTransform()
+        rht = radialFourierTransform()
         rprofs       = to_transform(rht.r)
         lprofs       = rht.real2harm(rprofs)
         ell_vec = rht.l
@@ -295,7 +295,7 @@ class gnfw:
 
         theta_range = [pix.dx/10.,self.theta_Delta*self.my_params_sz.R_truncation*20.]
 
-        rht = maps.RadialFourierTransform(rrange=theta_range)
+        rht = radialFourierTransform(rrange=theta_range)
         rprofs = to_transform(rht.r)
         lprofs = rht.real2harm(rprofs)
         ell_vec = rht.l
@@ -412,7 +412,7 @@ class constants:
 def get_m_500(theta_500_arcmin,z,cosmology): #return M_500 in units of 1e15 solar masses
 
     theta_500 = theta_500_arcmin/60./180.*np.pi
-    R_500 = theta_500*cosmology.comoving_distance(z).value/(1+z)
+    R_500 = theta_500*cosmology.angular_diameter_distance(z).value
     const = constants()
     rho_c = cosmology.critical_density(z).value*1000.*const.mpc**3/const.solar
     M_500 = 500.*4.*np.pi/3.*rho_c*R_500**3/1e15
@@ -425,7 +425,7 @@ def get_theta_500_arcmin(M_500,z,cosmology): #return M_500 in units of 1e15 sola
     const = constants()
     rho_c = cosmology.critical_density(z).value*1000.*const.mpc**3/const.solar
     R_500 = (M_500/(500.*4.*np.pi/3.*rho_c))**(1./3.)
-    theta_500 = R_500/(cosmology.comoving_distance(z).value/(1+z))
+    theta_500 = R_500/cosmology.angular_diameter_distance(z).value
     theta_500_arcmin = theta_500*60.*180./np.pi
 
     return theta_500_arcmin
@@ -539,7 +539,9 @@ class point_source:
 
 class cosmological_model:
 
-    def __init__(self,name="Planck15"):
+    def __init__(self,params_szifi):
+
+        name = params_szifi["cosmology"]
 
         if name == "Planck15":
 
@@ -557,3 +559,171 @@ class cosmological_model:
             self.sigma8 = 0.81
             self.cosmology = cp.FlatLambdaCDM(Om0=self.Om0,H0=self.h*100.,Ob0=self.Ob0)
             self.As = 2.079522e-09
+
+        elif name == "cosmocnc":
+
+            import cosmocnc
+
+            cosmology_tool = params_szifi["cosmology_tool"]
+            cosmo_params = cosmocnc.cosmo_params_default
+            cosmology_model = cosmocnc.cosmology_model(cosmo_params=cosmo_params,cosmology_tool=cosmology_tool,amplitude_parameter="sigma_8")
+            self.cosmology = cosmology_model.background_cosmology
+
+#Taken from pixell
+
+class radialFourierTransform:
+
+    def __init__(self, lrange=None, rrange=None, n=512, pad=256):
+        """Construct an object for transforming between radially
+        symmetric profiles in real-space and fourier space using a
+        fast Hankel transform. Aside from being fast, this is also
+        good for representing both cuspy and very extended profiles
+        due to the logarithmically spaced sample points the fast
+        Hankel transform uses. A cost of this is that the user can't
+        freely choose the sample points. Instead one passes the
+        multipole range or radial range of interest as well as the
+        number of points to use.
+
+        The function currently assumes two dimensions with flat geometry.
+        That means the function is only approximate for spherical
+        geometries, and will only be accurate up to a few degrees
+        in these cases.
+
+        Arguments:
+        * lrange = [lmin, lmax]: The multipole range to use. Defaults
+          to [0.01, 1e6] if no rrange is given.
+        * rrange = [rmin, rmax]: The radius range to use if lrange is
+        	not specified, in radians. Example values: [1e-7,10].
+        	Since we don't use spherical geometry r is not limited to 2 pi.
+        * n: The number of logarithmically equi-spaced points to use
+        	in the given range. Default: 512. The Hankel transform usually
+        	doesn't need many points for good accuracy, and can suffer if
+        	too many points are used.
+        * pad: How many extra points to pad by on each side of the range.
+          Padding is useful to get good accuracy in a Hankel transform.
+          The transforms this function does will return padded output,
+        	which can be unpadded using the unpad method. Default: 256
+        """
+        if lrange is None and rrange is None: lrange = [0.1, 1e7]
+        if lrange is None: lrange = [1/rrange[1], 1/rrange[0]]
+        logl1, logl2 = np.log(lrange)
+        logl0        = (logl2+logl1)/2
+        self.dlog    = (logl2-logl1)/n
+        i0           = (n+1)/2+pad
+        self.l       = np.exp(logl0 + (np.arange(1,n+2*pad+1)-i0)*self.dlog)
+        self.r       = 1/self.l[::-1]
+        self.pad     = pad
+
+    def real2harm(self, rprof):
+        """Perform a forward (real -> harmonic) transform, taking us from the
+        provided real-space radial profile rprof(r) to a harmonic-space profile
+        lprof(l). rprof can take two forms:
+        1. A function rprof(r) that can be called to evalute the profile at
+           arbitrary points.
+        2. An array rprof[self.r] that provides the profile evaluated at the
+           points given by this object's .r member.
+        The transform is done along the last axis of the profile.
+        Returns lprof[self.l]. This includes padding, which can be removed
+        using self.unpad"""
+        import scipy.fft
+        try: rprof = rprof(self.r)
+        except TypeError: pass
+        lprof = 2*np.pi*scipy.fft.fht(rprof*self.r, self.dlog, 0)/self.l
+        return lprof
+
+    def harm2real(self, lprof):
+        """Perform a backward (harmonic -> real) transform, taking us from the
+        provided harmonic-space radial profile lprof(l) to a real-space profile
+        rprof(r). lprof can take two forms:
+        1. A function lprof(l) that can be called to evalute the profile at
+           arbitrary points.
+        2. An array lprof[self.l] that provides the profile evaluated at the
+           points given by this object's .l member.
+        The transform is done along the last axis of the profile.
+        Returns rprof[self.r]. This includes padding, which can be removed
+        using self.unpad"""
+        import scipy.fft
+        try: lprof = lprof(self.l)
+        except TypeError: pass
+        rprof = scipy.fft.ifht(lprof/(2*np.pi)*self.l, self.dlog, 0)/self.r
+        return rprof
+
+    def unpad(self, *arrs):
+        """Remove the padding from arrays used by this object. The
+        values in the padded areas of the output of the transform have
+        unreliable values, but they're not cropped automatically to
+        allow for round-trip transforms. Example:
+        	r = unpad(r_padded)
+        	r, l, vals = unpad(r_padded, l_padded, vals_padded)"""
+        if self.pad == 0: res = arrs
+        else: res = tuple([arr[...,self.pad:-self.pad] for arr in arrs])
+        return res[0] if len(arrs) == 1 else res
+
+def profile_to_tform_hankel(profile_fun, lmin=0.1, lmax=1e7, n=512, pad=256):
+    """Transform a radial profile given by the function profile_fun(r) to
+    sperical harmonic coefficients b(l) using a Hankel transform. This approach
+    is good at handling cuspy distributions due to using logarithmically spaced
+    points. n points from 10**logrange[0] to 10**logrange[1] will be used.
+    Returns l, bl. l will not be equi-spaced, so you may want to interpolate
+    the results. Note that unlike other similar functions in this module and
+    the curvedsky module, this function uses the flat sky approximation, so
+    it should only be used for profiles up to a few degrees in size."""
+    rht   = radialFourierTransform(lrange=[lmin,lmax], n=n, pad=pad)
+    lprof = rht.real2harm(profile_fun)
+    return rht.unpad(rht.l, lprof)
+    
+def get_bl(fwhm_arcmin,ell):
+
+    return np.exp(-(fwhm_arcmin*np.pi/180./60.)**2/(16.*np.log(2.))*ell*(ell+1.))
+
+def y0_to_T(y0,z,E_z,D_A,h70):
+
+    alpha_szifi = 1.12
+    bias_sz = 0.62
+    A_szifi = -4.3054
+    I = 0.06728373215772082 #see test_scaling_relation_int.py
+
+    prefactor_M_to_y0 = 10.**(A_szifi)*E_z**2*(1./3.*h70)**alpha_szifi/np.sqrt(h70)
+    prefactor_M_500_to_theta = 6.997*(h70)**(-2./3.)*(1./3.)**(1./3.)*E_z**(-2./3.)*(500./D_A)
+
+    M_sr = (y0/prefactor_M_to_y0)**(1./alpha_szifi)/bias_sz
+    theta_500_sr = prefactor_M_500_to_theta*(bias_sz*M_sr)**(1./3.)
+
+    Y_500 = y0*theta_500_sr**2*np.pi*I
+
+    arcmin_to_rad = np.pi/60./180.
+
+    Y_500_Mpc = Y_500*D_A**2*arcmin_to_rad**2
+
+    T = Y_500_to_T(Y_500_Mpc,z,E_z)
+
+    return T
+
+def y0_to_Y_500(y0,theta_500):
+
+    I = 0.06728373215772082 #see test_scaling_relation_int.py
+    Y_500 = y0*theta_500**2*np.pi*I
+
+    return Y_500
+
+def y0_to_Y_500_Mpc(y0,theta_500,D_A):
+
+    arcmin_to_rad = np.pi/60./180.
+    Y_500 =  y0_to_Y_500(y0,theta_500)
+    Y_500_Mpc = Y_500*D_A**2*arcmin_to_rad**2
+
+    return Y_500_Mpc
+
+
+def Y_500_to_T(Y_500_Mpc,z,E_z):
+
+    z_rsz = [0.,0.25,0.5,1.,1.5]
+    A_rsz = [3.123,2.839,2.584,2.113,1.765]
+    B_rsz = [0.364,0.369,0.363,0.361,0.360]
+
+    A_rsz_vec = np.interp(z,z_rsz,A_rsz)
+    B_rsz_vec = np.interp(z,z_rsz,B_rsz)
+
+    T = E_z**(2./5.)*A_rsz_vec*(Y_500_Mpc/1e-5)**B_rsz_vec
+
+    return T
