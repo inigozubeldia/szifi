@@ -19,7 +19,7 @@ class cluster_finder:
         self.theta_500_vec = self.params_szifi["theta_500_vec_arcmin"]
         self.rank = rank
         self.exp = self.data_file["experiment"]
-        self.cosmology = model.cosmological_model(name=self.params_szifi["cosmology"]).cosmology
+        self.cosmology = model.cosmological_model(self.params_szifi).cosmology
         self.indices_filter=None
         if self.params_szifi["detection_method"] == "DBSCAN":
             from sklearn.cluster import DBSCAN
@@ -602,9 +602,9 @@ class filter_maps:
             cat_new = cat.apply_mask_select(cat_new,self.mask_select_dict[mask_name],self.pix)
             self.results[mask_name] = cat_new
 
-            print("mean mask",np.mean(self.mask_select_list[i]))
+            print("mean mask",np.mean(self.mask_select_dict[mask_name]))
 
-            print("catalogue",i,cat_new.catalogue["q_opt"] )
+            print("catalogue",mask_name,cat_new.catalogue["q_opt"] )
 
         return 0
 
