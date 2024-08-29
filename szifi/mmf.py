@@ -602,10 +602,6 @@ class filter_maps:
             cat_new = cat.apply_mask_select(cat_new,self.mask_select_dict[mask_name],self.pix)
             self.results[mask_name] = cat_new
 
-            print("mean mask",np.mean(self.mask_select_dict[mask_name]))
-
-            print("catalogue",mask_name,cat_new.catalogue["q_opt"] )
-
         return 0
 
     #Apply MMF for input catalogue

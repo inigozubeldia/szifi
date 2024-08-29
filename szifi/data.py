@@ -80,7 +80,6 @@ class input_data:
                 mask_select = mask_select_no_tile*mask_tile
                 mask_select = maps.get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile,criterion=params_szifi["min_ftile"])
 
-                print("mask select",np.mean(mask_select))
                 self.data["mask_point"][field_id] = mask_point
                 self.data["mask_select"][field_id] = mask_select
                 self.data["mask_select_no_tile"][field_id] = mask_select_no_tile
