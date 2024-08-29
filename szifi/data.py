@@ -208,7 +208,6 @@ class input_data:
             self.data["experiment"] = expt.experiment(experiment_name="Planck_real",params_szifi=params_szifi)
 
 
-
         elif params_data["data_set"] == "so_sims":
             print(">>> doing so sims")
             self.nside_tile = 8

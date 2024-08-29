@@ -163,18 +163,12 @@ class tsz_model:
             params.Dtau = 0.01             # The optical depth (must be > 0)
             params.check_values()             # A function to check that the values set are valid.
 
-            #nonrel = szpack.compute_non_relativistic(params,DI=True)/params.calc_The/params.Dtau
             SED = SZpack.compute_combo(params,DI=True)/params.calc_The/params.Dtau
 
             nu_szpack = params.nucmb*1e9
 
             SED = SED/muK_to_MJysr(nu_szpack)
             SED = np.interp(nu,nu_szpack,SED)
-
-            print("Relativistic SZ")
-
-            #x = nu*self.const.h/(self.const.k_B*self.const.T_CMB)
-            #SED = (x/np.tanh(0.5*x)-4.)*self.const.T_CMB*1e6
 
         return SED
 

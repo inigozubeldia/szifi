@@ -56,7 +56,7 @@ for det_method in detection_methods:
     catalogue_obs_noit = szifi.merge_detections(catalogue_obs_noit,radius_arcmin=radius_arcmin,return_merge_flag=True,mode="fof")
     catalogue_obs_it = szifi.merge_detections(catalogue_obs_it,radius_arcmin=radius_arcmin,return_merge_flag=True,mode="fof")
 
-    #Some plots
+    #Plot detections
 
     pl.hist(catalogue_obs_it.catalogue["q_opt"],color="tab:blue",label="Iterative")
     pl.hist(catalogue_obs_noit.catalogue["q_opt"],color="tab:orange",label="Non iterative")
@@ -64,12 +64,4 @@ for det_method in detection_methods:
     pl.xlabel("Detection SNR")
     pl.ylabel("Number of detections")
     pl.savefig("detection_histogram.pdf")
-    pl.show()
-
-    pl.scatter(catalogue_obs_noit.catalogue["q_opt"],catalogue_obs_it.catalogue["q_opt"])
-    x = np.linspace(np.min(catalogue_obs_noit.catalogue["q_opt"]),np.max(catalogue_obs_noit.catalogue["q_opt"]),100)
-    pl.plot(x,x,color="k")
-    pl.xlabel("Non-iterative SNR")
-    pl.ylabel("Iterative SNR")
-    pl.savefig("detection_itnoit_comparison.pdf")
     pl.show()
