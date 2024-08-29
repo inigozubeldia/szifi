@@ -62,6 +62,7 @@ class cluster_finder:
             print("")
 
             #Gather input data
+            ## Note this deletes information from the input object (self.data_file) so it cannot be reused (this is to save memory)
             map_dtype = self.params_szifi["map_dtype"]
             self.t_obs = utils.extract(self.data_file, "t_obs", field_id, map_dtype) #in muK
             self.t_noi = utils.extract(self.data_file, "t_noi", field_id, map_dtype) #in muK
@@ -429,8 +430,8 @@ class filter_maps:
             t_obs = maps.filter_tmap(t_obs,self.pix,self.params["lrange"], indices_filter=self.indices_filter)
 
         n_theta = len(self.theta_500_vec)
-        detect_peaks_maxima = (self.params["detection_method"] == "maxima") and (n_theta > 3)
-        if detect_peaks_maxima:
+        detect_peaks_maxima_lomem = (self.params["detection_method"] == "maxima_lomem") and (n_theta > 3)
+        if detect_peaks_maxima_lomem:
             self.peak_info = {}
             for mask_name in self.mask_names:
                 self.peak_info[mask_name] = np.empty((5, 0), dtype=np.float32)
@@ -522,7 +523,7 @@ class filter_maps:
                 np.save(file=fil, arr=q_map*self.mask_select_dict['tile'])
                 fil.close()
 
-            if detect_peaks_maxima: # For "maxima" method we do peak-finding here to save memory
+            if detect_peaks_maxima_lomem: # For "maxima_lomem" method we do peak-finding here to save memory
                 q_th = self.params['q_th']
                 if j == 0:
                     self.q_tensor[:,:,1] = q_map
@@ -565,7 +566,7 @@ class filter_maps:
 
         for mask_name in self.mask_names:
 
-            if detect_peaks_maxima:
+            if detect_peaks_maxima_lomem:
                 q_opt, y0_est, theta_est, inds0, inds1 = self.peak_info[mask_name]
                 inds0, inds1 = inds0.astype(np.int64), inds1.astype(np.int64)
                 x_est = x_coord[(inds0, inds1)]
@@ -681,7 +682,7 @@ class filter_maps:
             exp=self.exp,
             comp_to_calculate=self.params["comp_to_calculate"],
             profile_type=self.params_model["profile_type"],
-            T=T,
+            indices_filter=self.indices_filter,
             )
 
             q_opt[i,:] = q_extracted
@@ -723,7 +724,7 @@ class filter_maps:
 
 def extract_at_input_value(t_true,inv_cov,pix,beam,M_500,z,cosmology,norm_type,
 theta_x,theta_y,lrange,apod_type=None,mmf_type=None,cmmf_prec=None,cmmf_type=None,
-freqs=None,exp=None,comp_to_calculate=None,profile_type=None, indices_filter=None):
+freqs=None,exp=None,comp_to_calculate=None,profile_type=None,indices_filter=None):
 
 
     nfw = model.gnfw(M_500,z,cosmology,type=profile_type)
@@ -820,7 +821,7 @@ def make_detections(q_tensor,q_th,pix,detection_method="maxima"):
 
             ret = (i_opt_vec,j_opt_vec,theta_opt_vec)
 
-        elif detection_method == "maxima":
+        elif detection_method in ["maxima", "maxima_lomem"] :
 
             q_tensor_maxima = q_tensor[:,:,:].copy()
             q_tensor_maxima[np.where(q_tensor_maxima < q_th)] = 0.

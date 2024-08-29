@@ -35,7 +35,7 @@ params_szifi_default = {
 "min_ftile":0.3, #minimum unmasked fraction of tile for it to be considered for cluster finding
 
 "theta_find": "input",
-"detection_method": "maxima",
+"detection_method": "maxima_lomem",
 "apod_type": "old",
 "path": "/Users/inigozubeldia/Desktop/szifi/",
 "path_data": "/Users/inigozubeldia/Desktop/szifi/data/",
