@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import healpy as hp
 from szifi import params, maps, expt, cat
@@ -57,7 +56,7 @@ class input_data:
 
                 #Fields
 
-                [tmap] = np.load(path + "planck_field_" + str(field_id) + "_tmap.npy")
+                [tmap] = np.load(path + "planck_maps/planck_field_" + str(field_id) + "_tmap.npy")
                 tmap[:,:,4] = tmap[:,:,4]/58.04
                 tmap[:,:,5] = tmap[:,:,5]/2.27
                 tmap = tmap*1e6
@@ -69,7 +68,7 @@ class input_data:
 
                 buffer_arcmin = 10. #usually around twice the beam
 
-                [mask_galaxy,mask_point,mask_tile] = np.load(path + "planck_field_" + str(field_id) + "_mask.npy")
+                [mask_galaxy,mask_point,mask_tile] = np.load(path + "planck_maps/planck_field_" + str(field_id) + "_mask.npy")
 
                 mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
                 mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
@@ -80,6 +79,7 @@ class input_data:
                 mask_select = mask_select_no_tile*mask_tile
                 mask_select = maps.get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile,criterion=params_szifi["min_ftile"])
 
+                print("mask select",np.mean(mask_select))
                 self.data["mask_point"][field_id] = mask_point
                 self.data["mask_select"][field_id] = mask_select
                 self.data["mask_select_no_tile"][field_id] = mask_select_no_tile
@@ -93,11 +93,11 @@ class input_data:
                 if np.array_equal(mask_ps, maps.get_apodised_mask(self.pix,np.ones((self.nx,self.nx)),
                 apotype="Smooth",aposcale=0.2)):
 
-                     cm_name = path + "apod_smooth_1024.fits"
+                     cm_name = path + "coupling_matrices_planck/apod_smooth_1024.fits"
 
                 else:
 
-                    cm_name = path + "apod_smooth_" + str(field_id) + ".fits"
+                    cm_name = path + "coupling_matrices_planck/apod_smooth_" + str(field_id) + ".fits"
 
                 self.data["coupling_matrix_name"][field_id] = cm_name
 
@@ -106,7 +106,7 @@ class input_data:
             self.data["experiment"] = expt.experiment(experiment_name="Planck_real",params_szifi=params_szifi)
 
 
-        elif params_data["data_set"] == "Planck_websky":
+        if params_data["data_set"] == "Planck_websky":
 
             self.nside_tile = 8
             self.n_tile = hp.nside2npix(self.nside_tile)
@@ -170,7 +170,7 @@ class input_data:
 
                 buffer_arcmin = 10. #usually around twice the beam
 
-                [mask_galaxy,mask_point_real,mask_tile] = np.load(path + "planck_field_" + str(field_id) + "_mask.npy")
+                [mask_galaxy,mask_point_real,mask_tile] = np.load(path + "planck_maps/planck_field_" + str(field_id) + "_mask.npy")
 
                 mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
                 mask_ps = maps.get_apodised_mask(self.pix,mask_galaxy,apotype="Smooth",aposcale=0.2)
@@ -195,11 +195,11 @@ class input_data:
                 if np.array_equal(mask_ps, maps.get_apodised_mask(self.pix,np.ones((self.nx,self.nx)),
                 apotype="Smooth",aposcale=0.2)):
 
-                     cm_name = path + "apod_smooth_1024.fits"
+                     cm_name = path + "coupling_matrices_planck/apod_smooth_1024.fits"
 
                 else:
 
-                    cm_name = path + "apod_smooth_" + str(field_id) + ".fits"
+                    cm_name = path + "coupling_matrices_planck/apod_smooth_" + str(field_id) + ".fits"
 
                 self.data["coupling_matrix_name"][field_id] = cm_name
 
@@ -207,9 +207,6 @@ class input_data:
 
             self.data["experiment"] = expt.experiment(experiment_name="Planck_real",params_szifi=params_szifi)
 
-            #Experiment specifications
-
-            self.data["experiment"] = expt.experiment(experiment_name="SObaseline_simple",params_szifi=params_szifi)
 
 
 class catalogue_data:
@@ -414,6 +411,7 @@ class catalogue_data:
             self.catalogue.catalogue["z"] = data["REDSHIFT"]
             self.catalogue.catalogue["M500"] = data["M500"]
             self.catalogue.catalogue["q_opt"] = data["XI"]
+
 
         elif name == "SPT_2500d":
 
