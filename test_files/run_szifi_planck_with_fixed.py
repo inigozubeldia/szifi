@@ -15,7 +15,7 @@ params_szifi = szifi.params_szifi_default
 
 #Input data
 
-params_data["field_ids"] = [0,1]
+params_data["field_ids"] = [0]
 data = szifi.input_data(params_szifi=params_szifi,params_data=params_data)
 
 #Find clusters
