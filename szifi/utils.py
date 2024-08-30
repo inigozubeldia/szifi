@@ -12,7 +12,7 @@ def get_q_bias(pix,tem,signal,cov_mf_true,cov_noi_true,n_modes_per_bin_map,type=
     tem_fft = maps.get_fft(tem,pix)
     signal_fft = maps.get_fft(signal,pix)
 
-    n0 = filter_sum_1(tem_fft,tem_fft,cov_mf_true)
+    n0 = filter_sum(tem_fft,tem_fft,cov_mf_true)
 
     map1 = (signal_fft+np.conjugate(signal_fft))*cov_noi_true*np.conjugate(tem_fft)
     map2 = (signal_fft+np.conjugate(signal_fft))*cov_noi_true*np.conjugate(tem_fft)*np.abs(tem_fft)**2
@@ -40,9 +40,9 @@ def get_q_std_bias(pix,tem,signal,cov_mf_true,cov_noi_true):
 
     tem_fft = maps.get_fft(tem,pix)
     signal_fft = maps.get_fft(signal,pix)
-    n0 = filter_sum_1(tem_fft,tem_fft,cov_mf_true)
-    n_bias = filter_sum_1(tem_fft,tem_fft*cov_noi_true,(cov_mf_true)**2)
-    n_bias = filter_sum_1(tem_fft,tem_fft*cov_noi_true,(cov_mf_true)**2)
+    n0 = filter_sum(tem_fft,tem_fft,cov_mf_true)
+    n_bias = filter_sum(tem_fft,tem_fft*cov_noi_true,(cov_mf_true)**2)
+    n_bias = filter_sum(tem_fft,tem_fft*cov_noi_true,(cov_mf_true)**2)
     sigma_unbiased = 1./np.sqrt(n0)
     sigma_biased = 1./np.sqrt(n_bias)
 
@@ -194,3 +194,23 @@ def gaussian_1d(x,mu,sigma):
     y = (x-mu)/sigma
 
     return np.exp(-0.5*y**2)/(np.sqrt(2.*np.pi*sigma**2))
+
+def extract(dct,name,field_id=None, dtype=None):
+
+    """Return a data entry and delete it from this object for memory management"""
+
+    if field_id is None:
+
+        obj = dct.pop(name)
+
+    else:
+
+        obj = dct[name][field_id]
+
+        del dct[name][field_id]
+
+    if isinstance(obj, np.ndarray) and (dtype is not None):
+
+        obj = np.asarray(obj,dtype)
+
+    return obj

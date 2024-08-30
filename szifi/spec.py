@@ -214,8 +214,11 @@ class cross_spec:
         n_freq = self.n_freqs
         spec_tensor = np.zeros((len(ell),n_freq,n_freq))
         self.ps = ps
+
         if ps.new_shape != new_shape:
+
             raise ValueError(f"cross_spec new_shape={new_shape} and ps {ps.new_shape} should be equal")
+
         if theory == False:
 
             for i in range(0,n_freq):
@@ -519,25 +522,35 @@ def get_beam_tensor(ell,exp,freqs,beam_type="gaussian"):
     return beam_tensor
 
 class ps_flat_sky:
+
     def __init__(self,pix,mask,ell_bins_edges=None,fac=4):
+
         self.pix = pix
         self.mask = mask
         Lx = pix.nx*pix.dx
         Ly = Lx
+
         if ell_bins_edges == None:
+
             l0_bins = np.arange(pix.nx/fac)*fac*np.pi/(pix.nx*pix.dx)
             lf_bins = (np.arange(pix.nx/fac)+1)*fac*np.pi/(pix.nx*pix.dx)
             bins = nmt.NmtBinFlat(l0_bins, lf_bins)
             ells_uncoupled = bins.get_effective_ells()
             self.bins = bins
-        f0 = nmt.NmtFieldFlat(Lx, Ly, mask,[np.zeros((self.pix.nx,self.pix.ny))])
+
+        f0 = nmt.NmtFieldFlat(Lx,Ly,mask,[np.zeros((self.pix.nx,self.pix.ny))])
         w00 = nmt.NmtWorkspaceFlat()
         w00.compute_coupling_matrix(f0,f0,self.bins)
         self.w00 = w00
         self.ells_uncoupled = ells_uncoupled
+
     def get_ps(self,map,decouple=True):
+
         f1 = nmt.NmtFieldFlat(self.pix.nx*self.pix.dx,self.pix.ny*self.pix.dy,self.mask,[map])
         cl00_coupled = nmt.compute_coupled_cell_flat(f1,f1,self.bins)
+
         if decouple == True:
+
             cl_uncoupled = self.w00.decouple_cell(cl00_coupled)[0]
+            
         return self.ells_uncoupled,cl_uncoupled

@@ -2,6 +2,7 @@ import numpy as np
 from scipy import integrate, interpolate
 import scipy.optimize as optimize
 from szifi import maps
+import astropy.cosmology as cp
 
 #Delta critical always
 
@@ -544,20 +545,19 @@ class cosmological_model:
         name = params_szifi["cosmology"]
 
         if name == "Planck15":
-
-            from astropy.cosmology import Planck15
-
-            self.cosmology = Planck15
+            self.cosmology = cp.Planck15
 
         elif name == "Websky":
-
             self.Ob0 = 0.049
             self.Oc0 = 0.261
             self.Om0 = self.Ob0 + self.Oc0
             self.h      = 0.68
             self.ns     = 0.965
             self.sigma8 = 0.81
-            self.cosmology = cp.FlatLambdaCDM(Om0=self.Om0,H0=self.h*100.,Ob0=self.Ob0)
+            self.Neff = 3.046
+            self.m_nu = [0.06, 0, 0]
+            self.Tcmb0 = 2.7255
+            self.cosmology = cp.FlatLambdaCDM(Om0=self.Om0,H0=self.h*100.,Ob0=self.Ob0, Tcmb0=self.Tcmb0, Neff=self.Neff, m_nu=self.m_nu)
             self.As = 2.079522e-09
 
         elif name == "cosmocnc":
@@ -659,6 +659,8 @@ class radialFourierTransform:
         else: res = tuple([arr[...,self.pad:-self.pad] for arr in arrs])
         return res[0] if len(arrs) == 1 else res
 
+#Taken from pixell
+
 def profile_to_tform_hankel(profile_fun, lmin=0.1, lmax=1e7, n=512, pad=256):
     """Transform a radial profile given by the function profile_fun(r) to
     sperical harmonic coefficients b(l) using a Hankel transform. This approach
@@ -671,7 +673,7 @@ def profile_to_tform_hankel(profile_fun, lmin=0.1, lmax=1e7, n=512, pad=256):
     rht   = radialFourierTransform(lrange=[lmin,lmax], n=n, pad=pad)
     lprof = rht.real2harm(profile_fun)
     return rht.unpad(rht.l, lprof)
-    
+
 def get_bl(fwhm_arcmin,ell):
 
     return np.exp(-(fwhm_arcmin*np.pi/180./60.)**2/(16.*np.log(2.))*ell*(ell+1.))

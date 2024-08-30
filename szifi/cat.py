@@ -215,6 +215,7 @@ fac_theta_500=1.,merge_radius_type="theta_500"):
                 coords1 = [lon1,lat1]
                 coords2 = [lon2,lat2]
 
+
                 distances = get_distance_sphere_lonlat(coords1,coords2)
 
                 if merge_radius_type == "fixed":
@@ -224,6 +225,7 @@ fac_theta_500=1.,merge_radius_type="theta_500"):
                 elif merge_radius_type == "theta_500":
 
                     indices_remove = np.where(distances < fac_theta_500*catalogue_new.catalogue["theta_500"][0])[0]
+
 
                 catalogue = remove_catalogue_indices(catalogue,indices_remove)
 

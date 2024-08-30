@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 
 params_szifi_default = {
 
@@ -34,10 +35,13 @@ params_szifi_default = {
 "min_ftile":0.3, #minimum unmasked fraction of tile for it to be considered for cluster finding
 
 "theta_find": "input",
-"detection_method": "maxima",
+"detection_method": "maxima_lomem",
 "apod_type": "old",
 "path": "/Users/inigozubeldia/Desktop/szifi/",
 "path_data": "/Users/inigozubeldia/Desktop/szifi/data/",
+"save_and_load_template": True,
+"path_template": "/Users/inigozubeldia/Desktop/szifi/data/templates/",
+"map_dtype": np.float32,
 
 "mmf_type": "standard", #"standard" or "spectrally_constrained"
 "cmmf_type": "one_dep", #"one_dep" or "general". If only one SED is deprojected, use "one_dep" (faster); they are mathematically the same
@@ -58,6 +62,14 @@ params_szifi_default = {
 "rSZ": False,
 }
 
+params_szifi_so = deepcopy(params_szifi_default)
+params_so = {
+    "beam" : "gaussian",
+    "min_ftile" : 0.2,
+    "lrange" : [100, 10000],
+    "powspec_lmax1d": 10000}
+for key in params_so.keys(): params_szifi_so[key] = params_so[key]
+
 params_model_default = {
 #Pressure profile parameters
 "profile_type":"arnaud", #"arnaud" or "point"
@@ -74,6 +86,13 @@ params_model_default = {
 
 params_data_default = {
 "data_set": "Planck_real",
+"field_ids": [0],
+"other_params":{
+"components":["tSZ","kSZ","CIB","CMB","noise"],
+}
+}
+params_data_so = {
+"data_set": "so_sims",
 "field_ids": [0],
 "other_params":{
 "components":["tSZ","kSZ","CIB","CMB","noise"],
