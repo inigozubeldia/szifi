@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name="szifi",
-    version="0.1",
+    version="1.0",
     description="SZ cluster finder",
     zip_safe=False,
     packages=["szifi"],
