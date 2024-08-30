@@ -27,7 +27,7 @@ Several sample scripts illustrating how the code works are included in szifi/tes
 SZiFi has been significantly upgraded on 30/04/2024. This upgrade includes the following:
 
 - A significant (~ factor of 2) performance boost and more efficient memory usage, thanks to Erik Rosenberg. Some of these improvements can be controlled with a small set of new parameters (see params.py).
-- Functionality to incorporate the tSZ relativistic corrections when performing the cluster extraction in the fixed mode, thanks to an interface with SZpack. We have included a new tutorial in test_files illustrating this new functionality.
+- Functionality to incorporate the tSZ relativistic corrections when performing the cluster extraction in the fixed mode. These corrections are computed using SZpack. We have included a new tutorial in test_files illustrating this new functionality.
 - A fix of a minor bug when masking the detections outside the tessellation mask in iterative noise covariance estimation.
 
 We recommend this latest version of the code to be used. It should be compatible with code using the previous, original version.
