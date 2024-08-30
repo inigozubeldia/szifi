@@ -40,7 +40,7 @@ params_szifi_default = {
 "path": "/Users/inigozubeldia/Desktop/szifi/",
 "path_data": "/Users/inigozubeldia/Desktop/szifi/data/",
 "save_and_load_template": True,
-"path_template": "/mirror/scratch/erosen/data/so_sims/tem/",
+"path_template": "/Users/inigozubeldia/Desktop/szifi/data/templates/",
 "map_dtype": np.float32,
 
 "mmf_type": "standard", #"standard" or "spectrally_constrained"

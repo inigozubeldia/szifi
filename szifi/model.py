@@ -659,6 +659,8 @@ class radialFourierTransform:
         else: res = tuple([arr[...,self.pad:-self.pad] for arr in arrs])
         return res[0] if len(arrs) == 1 else res
 
+#Taken from pixell
+
 def profile_to_tform_hankel(profile_fun, lmin=0.1, lmax=1e7, n=512, pad=256):
     """Transform a radial profile given by the function profile_fun(r) to
     sperical harmonic coefficients b(l) using a Hankel transform. This approach
@@ -671,7 +673,7 @@ def profile_to_tform_hankel(profile_fun, lmin=0.1, lmax=1e7, n=512, pad=256):
     rht   = radialFourierTransform(lrange=[lmin,lmax], n=n, pad=pad)
     lprof = rht.real2harm(profile_fun)
     return rht.unpad(rht.l, lprof)
-    
+
 def get_bl(fwhm_arcmin,ell):
 
     return np.exp(-(fwhm_arcmin*np.pi/180./60.)**2/(16.*np.log(2.))*ell*(ell+1.))

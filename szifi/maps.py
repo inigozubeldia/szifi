@@ -395,26 +395,39 @@ def rfft2_to_fft2(pix,rfft):
 
     return fft
 
-def resample_fft(d, n, axes=None):
+def resample_fft(d,n,axes=None):
+
         """Resample numpy array d via fourier-reshaping. Requires periodic data.
         n indicates the desired output lengths of the axes that are to be
         resampled. By default the last len(n) axes are resampled, but this
         can be controlled via the axes argument.
         This function borrowed from Sigurd Naess' pixell,
         Copyright (c) 2018-2021, Members of the Simons Observatory Collaboration"""
+
         d = np.asanyarray(d)
         # Compute output lengths from factors if necessary
         n = np.atleast_1d(n)
+
         if axes is None: axes = np.arange(-len(n),0)
+
         else: axes = np.atleast_1d(axes)
+
         if len(n) == 1: n = np.repeat(n, len(axes))
+
         else: assert len(n) == len(axes)
+
         assert len(n) <= d.ndim
+
         # Nothing to do?
+
         if np.all(d.shape[-len(n):] == n): return d
+
         # Use the simple version if we can. It has lower memory overhead
+
         if d.ndim == 2 and len(n) == 1 and (axes[0] == 1 or axes[0] == -1):
+
                 return resample_fft_simple(d, n[0])
+
         # Perform the fourier transform
         fd = np.fft.fftn(d, axes=axes)
         # Frequencies are 0 1 2 ... N/2 (-N)/2 (-N)/2+1 .. -1
@@ -424,79 +437,120 @@ def resample_fft(d, n, axes=None):
         # The idea is simple, but arbitrary dimensionality makes it
         # complicated.
         norm = 1.0
+
         for ax, nnew in zip(axes, n):
+
                 ax %= d.ndim
                 nold = d.shape[ax]
                 dn   = nnew-nold
+
                 if dn > 0:
+
                         padvals = np.zeros(fd.shape[:ax]+(dn,)+fd.shape[ax+1:],fd.dtype)
                         spre  = tuple([slice(None)]*ax+[slice(0,nold//2)]+[slice(None)]*(fd.ndim-ax-1))
                         spost = tuple([slice(None)]*ax+[slice(nold//2,None)]+[slice(None)]*(fd.ndim-ax-1))
                         fd = np.concatenate([fd[spre],padvals,fd[spost]],axis=ax)
+
                 elif dn < 0:
+
                         spre  = tuple([slice(None)]*ax+[slice(0,nnew//2)]+[slice(None)]*(fd.ndim-ax-1))
                         spost = tuple([slice(None)]*ax+[slice(nnew//2-dn,None)]+[slice(None)]*(fd.ndim-ax-1))
                         fd = np.concatenate([fd[spre],fd[spost]],axis=ax)
+
                 norm *= float(nnew)/nold
         # And transform back
         res  = np.fft.ifftn(fd, axes=axes, norm='backward')
+
         del fd
+
         res *= norm
+        
         return res if np.issubdtype(d.dtype, np.complexfloating) else res.real
 
-def resample_fft_simple(d, n, ngroup=100):
+def resample_fft_simple(d,n,ngroup=100):
+
         """Resample 2d numpy array d via fourier-reshaping along
         last axis.
         This function borrowed from Sigurd Naess' pixell,
         Copyright (c) 2018-2021, Members of the Simons Observatory Collaboration"""
+
         nold = d.shape[1]
+
         if n == nold: return d
+
         res  = np.zeros([d.shape[0],n],dtype=d.dtype)
         dn   = n-nold
+
         for di in range(0, d.shape[0], ngroup):
+
                 fd = np.fft.fftn(d[di:di+ngroup])
+
                 if n < nold:
+
                         fd = np.concatenate([fd[:,:n//2],fd[:,n//2-dn:]],1)
+
                 else:
+
                         fd = np.concatenate([fd[:,:nold//2],np.zeros([len(fd),n-nold],fd.dtype),fd[:,nold//2:]],-1)
+
                 res[di:di+ngroup] = np.fft.ifftn(fd, norm='backward').real
+
         del fd
+
         res *= float(n)/nold
+
         return res
 
 def get_newshape_lmax1d(shape, lmax1d, dx_rad, powerOfTwo=False):
+
     """Get new shape for an array set by 1d-lmax (ie actual lmax will be sqrt(lmax_x^2 + lmax_y^2))"""
+
     if len(shape) > 2:
+
         raise ValueError("Expected 2-tuple shape")
+
     newdx = np.pi / lmax1d
+
     if newdx <= dx_rad:
+
         return shape
+
     extent = np.array(shape) * dx_rad
     new_shape = np.ceil(extent / newdx).astype(int)
+
     if powerOfTwo:
+
         new_shape = (2**np.ceil(np.log2(new_shape))).astype(int)
+
     return tuple(new_shape)
 
 def degrade_map(arr, new_shape, deg_axes=[0,1]):
+
     """Degrade a map by setting the new shape"""
+
     return resample_fft(arr, new_shape, deg_axes)
 
 def degrade_pix(pix, new_shape):
+
     """
     Degrade a pixel object
     pix: szifi.maps.pixel object
     new_shape: tuple, directly set new shape instead of using lmax
     """
+
     if new_shape is None:
+
         return pix
+
     nx, ny = new_shape
     new_dx = pix.dx * (pix.nx / nx)
     new_dy = pix.dy * (pix.ny / ny)
     deg_pix = pixel(nx, new_dx, ny, new_dy)
+
     return deg_pix
 
-
 def reshape_ell_matrix(arr, new_shape, axes=[0,1]):
+
     """
     Zero fill or cut arr in the given axes to reach new_shape
     This splits arr into quadrants and adds zeros (or removes vals) in the central cross; this is how to expand inv_cov or anything shaped like ell
@@ -504,23 +558,34 @@ def reshape_ell_matrix(arr, new_shape, axes=[0,1]):
     new_shape: tuple, new shape of *the axes to be expanded only*
     This function adapted from pixell.resample.resample_fft
     """
+
     if np.all(np.array([arr.shape[ax] for ax in axes]) == np.array(new_shape)):
+
         return arr
+
     for ax, nnew in zip(axes, new_shape):
+
         ax %= arr.ndim
         nold = arr.shape[ax]
         dn = nnew - nold
+
         if dn < 0:
+
             spre  = tuple([slice(None)]*ax+[slice(0,nnew//2)]+[slice(None)]*(arr.ndim-ax-1))
             spost = tuple([slice(None)]*ax+[slice(nnew//2-dn,None)]+[slice(None)]*(arr.ndim-ax-1))
             arr = np.concatenate([arr[spre], arr[spost]], axis=ax)
+
         elif dn == 0:
+
             continue
+
         else:
+
             padvals = np.zeros(arr.shape[:ax]+(dn,)+arr.shape[ax+1:],arr.dtype)
             spre  = tuple([slice(None)]*ax+[slice(0,nold//2)]+[slice(None)]*(arr.ndim-ax-1))
             spost = tuple([slice(None)]*ax+[slice(nold//2,None)]+[slice(None)]*(arr.ndim-ax-1))
             arr = np.concatenate([arr[spre],padvals,arr[spost]],axis=ax)
+
     return arr
 
 def get_noise_map(pix,n_lev): #white noise
