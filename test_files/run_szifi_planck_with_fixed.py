@@ -40,7 +40,7 @@ data = szifi.input_data(params_szifi=params_szifi,params_data=params_data)
 
 data.data["catalogue_input"] = {}
 data.data["catalogue_input"][0] = catalogue_obs_it
-
+ 
 #Run SZiFi on fixed mode
 
 params_szifi["extraction_mode"] = "fixed"

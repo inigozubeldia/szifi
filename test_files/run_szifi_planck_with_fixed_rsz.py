@@ -42,6 +42,7 @@ catalogue_obs_it = detection_processor.results.catalogues["catalogue_find_1"]
 
 #Define fixed catalogue
 
+data = szifi.input_data(params_szifi=params_szifi,params_data=params_data)
 data.data["catalogue_input"] = {}
 
 #Specify cluster temperatures in keV (SED updated in the fixed mode, NOT in the cluster-finding step)

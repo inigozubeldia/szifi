@@ -13,8 +13,7 @@ params_data = szifi.params_data_default
 params_model = szifi.params_model_default
 
 params_szifi["mmf_type"] = "spectrally_constrained"
-params_szifi["cmmf_type"] = "general"
-#params_szifi["cmmf_type"] = "one_dep"
+params_szifi["cmmf_type"] = "general" #or "one_dep" if only one SED is deprojected (faster)
 params_szifi["integrate_bandpass"] = True
 
 #Input data
@@ -48,10 +47,10 @@ params_szifi["a_matrix"] = a_matrix
 
 #Alternatively, deprojecting one moment (can choose between "betaT" and "beta"), comment out if only the SED is to be deprojected
 
-# a_matrix = np.zeros((len(freqs),3))
-# a_matrix[:,0] = data.data["experiment"].tsz_sed[freqs]
-# a_matrix[:,1] = cib_sed[freqs]
-# a_matrix[:,2] = cib_model.moments["betaT"]
+a_matrix = np.zeros((len(freqs),3))
+a_matrix[:,0] = data.data["experiment"].tsz_sed[freqs]
+a_matrix[:,1] = cib_sed[freqs]
+a_matrix[:,2] = cib_model.moments["betaT"]
 
 #Set mixing matrix
 
