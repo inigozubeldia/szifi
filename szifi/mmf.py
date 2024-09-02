@@ -997,7 +997,7 @@ def get_tem_conv_fft(pix_tem,tem_fft,inv_cov,mmf_type="standard",cmmf_prec=None,
         tem_fft = maps.get_tmap_times_fvec(tem_fft,cmmf_prec.a_matrix[:,comp]) #new line
         filter_fft = utils.get_inv_cov_conjugate(tem_fft,inv_cov)
 
-    elif mmf_type == "spectrally_constrained": #doesn"t admit changing compoenent order
+    elif mmf_type == "spectrally_constrained": #doesn't admit changing component order
 
         if cmmf_prec.cmmf_type == "one_dep":
 
@@ -1026,7 +1026,7 @@ def get_tem_conv_fft(pix_tem,tem_fft,inv_cov,mmf_type="standard",cmmf_prec=None,
 
 class scmmf_precomputation:
 
-    #sed"s in muK
+    #sed's in muK
 
     def __init__(self,pix=None,freqs=None,inv_cov=None,lrange=[0,1000000],beam_type="gaussian",exp=None,
     mask=None,cmmf_type="one_dep",a_matrix=None,n_dep=1,comp_to_calculate=[0],mmf_type="standard"):
