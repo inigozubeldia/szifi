@@ -62,13 +62,6 @@ params_szifi_default = {
 "rSZ": False,
 }
 
-params_szifi_so = deepcopy(params_szifi_default)
-params_so = {
-    "beam" : "gaussian",
-    "min_ftile" : 0.2,
-    "lrange" : [100, 10000],
-    "powspec_lmax1d": 10000}
-for key in params_so.keys(): params_szifi_so[key] = params_so[key]
 
 params_model_default = {
 #Pressure profile parameters
@@ -86,13 +79,6 @@ params_model_default = {
 
 params_data_default = {
 "data_set": "Planck_real",
-"field_ids": [0],
-"other_params":{
-"components":["tSZ","kSZ","CIB","CMB","noise"],
-}
-}
-params_data_so = {
-"data_set": "so_sims",
 "field_ids": [0],
 "other_params":{
 "components":["tSZ","kSZ","CIB","CMB","noise"],
