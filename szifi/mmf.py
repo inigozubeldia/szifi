@@ -81,6 +81,7 @@ class cluster_finder:
             self.mask_ps = utils.extract(self.data_file,"mask_ps", field_id,map_dtype)
             self.mask_select = utils.extract(self.data_file,"mask_select",field_id,map_dtype)
             self.mask_select_no_tile = utils.extract(self.data_file,"mask_select_no_tile",field_id,map_dtype)
+            self.mask_select_buffer = utils.extract(self.data_file, "mask_select_buffer", field_id, map_dtype)
             self.mask_map = utils.extract(self.data_file,"mask_map",field_id,map_dtype)
             self.mask_peak_finding_no_tile = utils.extract(self.data_file,"mask_peak_finding_no_tile",field_id,map_dtype)
             self.mask_peak_finding = utils.extract(self.data_file,"mask_peak_finding",field_id,map_dtype)
@@ -247,6 +248,23 @@ class cluster_finder:
                 comp_to_calculate=self.params_szifi["comp_to_calculate"],
                 mmf_type=self.params_szifi["mmf_type"])
 
+                tilemask_mode = self.params_szifi["tilemask_mode"]
+                if tilemask_mode == "catalogue": # Peak-find on whole field and apply tile mask to catalogues
+                    # Includes a "buffer" catalogue to ensure no clusters are missed on the borders of the tiles
+                    mask_peak_finding_names_list = ["field"]
+                    mask_peak_finding_dict = {"field": self.mask_peak_finding_no_tile, "names": mask_peak_finding_names_list}
+                    mask_select_names_dict = {"field":["field", "tile", "buffer"]}
+                    mask_select_dict = {"field": self.mask_select_no_tile, "tile": self.mask_select, "buffer": self.mask_select_buffer, "names": mask_select_names_dict}
+
+                elif tilemask_mode == "field": # Apply tile mask before peak-finding. Legacy mode used for Planck.
+                    mask_peak_finding_names_list = ["field", "tile"]
+                    mask_peak_finding_dict = {"field": self.mask_peak_finding_no_tile, "tile": self.mask_peak_finding, "names": mask_peak_finding_names_list}
+                    mask_select_names_dict= {"field":["field"], "tile":["tile"]}
+                    mask_select_dict = {"field": self.mask_select_no_tile, "tile": self.mask_select, "names": mask_select_names_dict}
+
+                else:
+                    raise ValueError(f"SziFi parameter tilemask_mode=\"{tilemask_mode}\" invalid. Allowed values are 'catalogue' and 'field'.")
+
                 #Matched filter construction
 
                 self.filtered_maps = filter_maps(t_obs=self.t_obs,
@@ -259,8 +277,8 @@ class cluster_finder:
                 params=self.params_szifi,
                 params_model=self.params_model,
                 mask_map=self.mask_map,
-                mask_select_dict={"tile":self.mask_select,"field":self.mask_select_no_tile},
-                mask_peak_finding_dict={"tile":self.mask_peak_finding,"field":self.mask_peak_finding_no_tile},
+                mask_select_dict=mask_select_dict,
+                mask_peak_finding_dict=mask_peak_finding_dict,
                 rank=self.rank,
                 exp=self.exp,
                 cmmf=self.cmmf)
@@ -277,8 +295,9 @@ class cluster_finder:
 
                     self.results.sigma_vec["find_" + str(i)] = self.filtered_maps.sigma_vec
 
-                    self.results.catalogues["catalogue_find_" + str(i)] = self.filtered_maps.results["tile"]
-                    results_for_masking = self.filtered_maps.results["field"]
+                    self.results.catalogues["catalogue_find_" + str(i)] = self.filtered_maps.results[('field', 'tile')]
+                    self.results.catalogues["catalogue_find_buffer_" + str(i)] = self.filtered_maps.results[('field', 'buffer')]
+                    results_for_masking = self.filtered_maps.results[('field', 'field')]
 
                     if self.rank == 0:
 
@@ -429,7 +448,8 @@ class filter_maps:
         self.mask_map = mask_map
         self.mask_select_dict = mask_select_dict
         self.mask_peak_finding_dict = mask_peak_finding_dict
-        self.mask_names = ["field", "tile"] # Order of calculation and easy iteration
+        self.mask_names_finding = ["field"] #, "tile"] # Order of calculation and easy iteration
+        self.mask_names_select = {"field": ["field", "tile", "buffer"]} # Which select masks to use for each peak detect mask
         self.rank = rank
         self.theta_500_vec = theta_500_vec
         self.exp = exp
@@ -461,7 +481,7 @@ class filter_maps:
 
             self.peak_info = {}
 
-            for mask_name in self.mask_names:
+            for mask_name in self.mask_names_finding:
 
                 self.peak_info[mask_name] = np.empty((5,0),dtype=np.float32)
 
@@ -586,7 +606,7 @@ class filter_maps:
                     qm = self.q_tensor[:,:,1] # We actually want to use the previous one
                     zmax = np.argmax(self.q_tensor, axis=2) == 1
 
-                    for mask_name in self.mask_names:
+                    for mask_name in self.mask_names_finding:
 
                         q_opt,y0_est,maxs_idx = make_detections2(qm,self.y_map_last,self.mask_peak_finding_dict[mask_name],q_th,zmax)
 
@@ -597,7 +617,7 @@ class filter_maps:
                         qm = self.q_tensor[:,:,2]
                         zmax = np.argmax(self.q_tensor[:,:,1:], axis=2) == 1
 
-                        for mask_name in self.mask_names:
+                        for mask_name in self.mask_names_finding:
 
                             q_opt,y0_est,maxs_idx = make_detections2(qm,y_map,self.mask_peak_finding_dict[mask_name],q_th,zmax)
                             self.save_detections(q_opt,y0_est,maxs_idx,mask_name,j)
@@ -621,7 +641,7 @@ class filter_maps:
         x_coord = maps.rmap(self.pix).get_x_coord_map_wrt_origin() #vertical coordinate, in rad
         y_coord = maps.rmap(self.pix).get_y_coord_map_wrt_origin() #horizontal coordinate, in rad
 
-        for mask_name in self.mask_names:
+        for mask_name in self.mask_names_finding:
 
             if detect_peaks_maxima_lomem:
                 q_opt, y0_est, theta_est, inds0, inds1 = self.peak_info[mask_name]
@@ -633,10 +653,9 @@ class filter_maps:
 
                 # deepcopy(self.q_tensor) here would be safest, otherwise self.q_tensor is modified in place
                 # But for memory savings, this is OK if the order is (no_tile, tile)
+                if self.mask_names_finding not in [['field'],['field','tile']]:
 
-                if self.mask_names != ["field", "tile"]:
-
-                    raise ValueError("masks must be ['field', 'tile']")
+                    raise ValueError("masks must be ['field'] or ['field','tile']")
 
                 q_tensor = apply_mask_peak_finding(self.q_tensor,self.mask_peak_finding_dict[mask_name])
                 indices = make_detections(q_tensor,self.params["q_th"],self.pix,detection_method=self.params["detection_method"])
@@ -661,8 +680,9 @@ class filter_maps:
             cat_new.catalogue["theta_y"] = theta_y
             cat_new.catalogue["pixel_ids"] = np.ones(len(q_opt))*self.field_id
 
-            cat_new = cat.apply_mask_select(cat_new,self.mask_select_dict[mask_name],self.pix)
-            self.results[mask_name] = cat_new
+            for mask_name_select in self.mask_names_select[mask_name]:
+                cat_new = cat.apply_mask_select(cat_new,self.mask_select_dict[mask_name_select],self.pix)
+            self.results[(mask_name, mask_name_select)] = cat_new
 
         return 0
 
