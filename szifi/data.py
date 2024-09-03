@@ -24,6 +24,7 @@ class input_data:
         self.data["mask_point"] = {}
         self.data["mask_select"] = {}
         self.data["mask_select_no_tile"] = {}
+        self.data["mask_select_buffer"] = {}
         self.data["mask_ps"] = {}
         self.data["mask_peak_finding"] = {}
         self.data["mask_peak_finding_no_tile"] = {}
@@ -79,9 +80,16 @@ class input_data:
                 mask_select = mask_select_no_tile*mask_tile
                 mask_select = maps.get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile,criterion=params_szifi["min_ftile"])
 
+                if params_szifi["tilemask_mode"] == "catalogue":
+                    mask_select_buffer = mask_select_no_tile * \
+                                         maps.get_buffer_region(self.pix, mask_tile, params_szifi["tilemask_buffer_arcmin"])
+                else:
+                    mask_select_buffer = 0
+
                 self.data["mask_point"][field_id] = mask_point
                 self.data["mask_select"][field_id] = mask_select
                 self.data["mask_select_no_tile"][field_id] = mask_select_no_tile
+                self.data["mask_select_buffer"][field_id] = mask_select_buffer
                 self.data["mask_map"][field_id] = mask_ps
                 self.data["mask_ps"][field_id] = mask_ps
                 self.data["mask_peak_finding_no_tile"][field_id] = mask_peak_finding_no_tile

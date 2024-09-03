@@ -849,6 +849,12 @@ def get_buffered_mask(pix,mask_input,buffer_arcmin,type="fft"):
 
     return mask_output
 
+def get_buffer_region(pix, mask, buffer_arcmin):
+    buffered_mask = get_buffered_mask(pix, mask, buffer_arcmin, type='fft')
+    ibuffered_mask = get_buffered_mask(pix, 1-mask, buffer_arcmin, type='fft')
+    buffer_region = 1 - buffered_mask - ibuffered_mask
+    return buffer_region
+
 #apotype: C1, C2 and Smooth
 
 def get_apodised_mask(pix,mask_input2,apotype="C1",aposcale=0.2):

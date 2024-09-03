@@ -253,14 +253,24 @@ class cluster_finder:
                     # Includes a "buffer" catalogue to ensure no clusters are missed on the borders of the tiles
                     mask_peak_finding_names_list = ["field"]
                     mask_peak_finding_dict = {"field": self.mask_peak_finding_no_tile, "names": mask_peak_finding_names_list}
+                    if i == 0:
+                        del self.mask_peak_finding # Not needed
                     mask_select_names_dict = {"field":["field", "tile", "buffer"]}
-                    mask_select_dict = {"field": self.mask_select_no_tile, "tile": self.mask_select, "buffer": self.mask_select_buffer, "names": mask_select_names_dict}
+                    mask_select_dict = {"field": self.mask_select_no_tile, "tile": self.mask_select,
+                                        "buffer": self.mask_select_buffer, "names": mask_select_names_dict}
+                    catalogue_find_key = ("field", "tile")
+                    catalogue_buffer_key = ("field", "buffer")
+                    for_masking_key = ("field", "field")
 
                 elif tilemask_mode == "field": # Apply tile mask before peak-finding. Legacy mode used for Planck.
                     mask_peak_finding_names_list = ["field", "tile"]
-                    mask_peak_finding_dict = {"field": self.mask_peak_finding_no_tile, "tile": self.mask_peak_finding, "names": mask_peak_finding_names_list}
+                    mask_peak_finding_dict = {"field": self.mask_peak_finding_no_tile, "tile": self.mask_peak_finding,
+                                              "names": mask_peak_finding_names_list}
                     mask_select_names_dict= {"field":["field"], "tile":["tile"]}
                     mask_select_dict = {"field": self.mask_select_no_tile, "tile": self.mask_select, "names": mask_select_names_dict}
+                    catalogue_find_key = ("tile", "tile")
+                    catalogue_buffer_key = "empty"
+                    for_masking_key = ("field", "field")
 
                 else:
                     raise ValueError(f"SziFi parameter tilemask_mode=\"{tilemask_mode}\" invalid. Allowed values are 'catalogue' and 'field'.")
@@ -295,9 +305,9 @@ class cluster_finder:
 
                     self.results.sigma_vec["find_" + str(i)] = self.filtered_maps.sigma_vec
 
-                    self.results.catalogues["catalogue_find_" + str(i)] = self.filtered_maps.results[('field', 'tile')]
-                    self.results.catalogues["catalogue_find_buffer_" + str(i)] = self.filtered_maps.results[('field', 'buffer')]
-                    results_for_masking = self.filtered_maps.results[('field', 'field')]
+                    self.results.catalogues["catalogue_find_" + str(i)] = self.filtered_maps.results[catalogue_find_key]
+                    self.results.catalogues["catalogue_find_buffer_" + str(i)] = self.filtered_maps.results[catalogue_buffer_key]
+                    results_for_masking = self.filtered_maps.results[for_masking_key]
 
                     if self.rank == 0:
 
@@ -350,11 +360,12 @@ class cluster_finder:
 
                 #Several breaking conditions
 
-                if len(self.results.catalogues["catalogue_find_" + str(i)].catalogue["q_opt"]) == 0.:
+                self.n_clusters = len(self.results.catalogues["catalogue_find_" + str(i)].catalogue["q_opt"]) + \
+                                  len(self.results.catalogues["catalogue_find_buffer_" + str(i)].catalogue["q_opt"])
+
+                if self.n_clusters == 0.:
 
                     break
-
-                self.n_clusters = len(self.results.catalogues["catalogue_find_" + str(i)].catalogue["q_opt"])
 
                 if self.params_szifi["iterative"] == False:
 
@@ -448,8 +459,8 @@ class filter_maps:
         self.mask_map = mask_map
         self.mask_select_dict = mask_select_dict
         self.mask_peak_finding_dict = mask_peak_finding_dict
-        self.mask_names_finding = ["field"] #, "tile"] # Order of calculation and easy iteration
-        self.mask_names_select = {"field": ["field", "tile", "buffer"]} # Which select masks to use for each peak detect mask
+        self.mask_names_finding = mask_peak_finding_dict["names"] # ['peak_finding_name1', 'peak_finding_name2',...]
+        self.mask_names_select = mask_select_dict["names"] # {'peak_finding_name':['select_name1',]};
         self.rank = rank
         self.theta_500_vec = theta_500_vec
         self.exp = exp
@@ -655,7 +666,7 @@ class filter_maps:
                 # But for memory savings, this is OK if the order is (no_tile, tile)
                 if self.mask_names_finding not in [['field'],['field','tile']]:
 
-                    raise ValueError("masks must be ['field'] or ['field','tile']")
+                    raise ValueError("mask list must be ['field'] or ['field','tile']")
 
                 q_tensor = apply_mask_peak_finding(self.q_tensor,self.mask_peak_finding_dict[mask_name])
                 indices = make_detections(q_tensor,self.params["q_th"],self.pix,detection_method=self.params["detection_method"])
@@ -682,8 +693,9 @@ class filter_maps:
 
             for mask_name_select in self.mask_names_select[mask_name]:
                 cat_new = cat.apply_mask_select(cat_new,self.mask_select_dict[mask_name_select],self.pix)
-            self.results[(mask_name, mask_name_select)] = cat_new
+                self.results[(mask_name, mask_name_select)] = cat_new
 
+        self.results["empty"] = cat.cluster_catalogue()
         return 0
 
     #Apply MMF for input catalogue
