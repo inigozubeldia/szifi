@@ -182,9 +182,7 @@ fac_theta_500=1.,merge_radius_type="theta_500"):
 
         for i in range(0,n_clusters_merged):
 
-            indices = np.where(labels==i)
-            q_max = np.max(catalogue.catalogue["q_opt"][indices])
-            index_max = np.where(catalogue.catalogue["q_opt"] == q_max)
+            index_max = np.argmax(catalogue.catalogue["q_opt"]*(labels==i))
 
             catalogue_new = cluster_catalogue()
 
@@ -207,44 +205,32 @@ fac_theta_500=1.,merge_radius_type="theta_500"):
 
         while i > 0:
 
-            if i > 1:
+            catalogue_new = get_catalogue_indices(catalogue,[0])
+            catalogue_merged.append(catalogue_new,append_keys="new")
 
-                catalogue_new = get_catalogue_indices(catalogue,[0])
-                catalogue_merged.append(catalogue_new,append_keys="new")
-
-                lon1 = catalogue_new.catalogue["lon"][0]*np.ones(len(catalogue.catalogue["lon"]))
-                lat1 = catalogue_new.catalogue["lat"][0]*np.ones(len(catalogue.catalogue["lat"]))
-                lon2 = catalogue.catalogue["lon"]
-                lat2 = catalogue.catalogue["lat"]
-                coords1 = [lon1,lat1]
-                coords2 = [lon2,lat2]
+            lon1 = catalogue_new.catalogue["lon"][0]*np.ones(len(catalogue.catalogue["lon"]))
+            lat1 = catalogue_new.catalogue["lat"][0]*np.ones(len(catalogue.catalogue["lat"]))
+            lon2 = catalogue.catalogue["lon"]
+            lat2 = catalogue.catalogue["lat"]
+            coords1 = [lon1,lat1]
+            coords2 = [lon2,lat2]
 
 
-                distances = get_distance_sphere_lonlat(coords1,coords2)
+            distances = get_distance_sphere_lonlat(coords1,coords2)
 
-                if merge_radius_type == "fixed":
+            if merge_radius_type == "fixed":
 
-                    indices_remove = np.where(distances < fac_theta_500)[0]
+                indices_remove = np.where(distances < fac_theta_500)[0]
 
-                elif merge_radius_type == "theta_500":
+            elif merge_radius_type == "theta_500":
 
-                    indices_remove = np.where(distances < fac_theta_500*catalogue_new.catalogue["theta_500"][0])[0]
+                indices_remove = np.where(distances < fac_theta_500*catalogue_new.catalogue["theta_500"][0])[0]
 
 
-                catalogue = remove_catalogue_indices(catalogue,indices_remove)
+            catalogue = remove_catalogue_indices(catalogue,indices_remove)
 
-            elif i == 1:
-
-                catalogue_new = get_catalogue_indices(catalogue,[0])
-                catalogue_merged.append(catalogue_new,append_keys="new")
-                indices_remove = [0]
-                catalogue = remove_catalogue_indices(catalogue,indices_remove)
 
             i = len(catalogue.catalogue["lon"])
-
-            if i == 0:
-
-                break
 
         #    print(i,len(indices_remove),catalogue_merged.catalogue["q_opt"])
 
@@ -259,37 +245,24 @@ fac_theta_500=1.,merge_radius_type="theta_500"):
 
         while i > 0:
 
-            if i > 1:
+            catalogue_new = get_catalogue_indices(catalogue,[0])
+            catalogue_merged.append(catalogue_new,append_keys="new")
 
-                catalogue_new = get_catalogue_indices(catalogue,[0])
-                catalogue_merged.append(catalogue_new,append_keys="new")
+            lon1 = catalogue_new.catalogue["lon"][0]*np.ones(len(catalogue.catalogue["lon"]))
+            lat1 = catalogue_new.catalogue["lat"][0]*np.ones(len(catalogue.catalogue["lat"]))
+            lon2 = catalogue.catalogue["lon"]
+            lat2 = catalogue.catalogue["lat"]
+            coords1 = [lon1,lat1]
+            coords2 = [lon2,lat2]
 
-                lon1 = catalogue_new.catalogue["lon"][0]*np.ones(len(catalogue.catalogue["lon"]))
-                lat1 = catalogue_new.catalogue["lat"][0]*np.ones(len(catalogue.catalogue["lat"]))
-                lon2 = catalogue.catalogue["lon"]
-                lat2 = catalogue.catalogue["lat"]
-                coords1 = [lon1,lat1]
-                coords2 = [lon2,lat2]
+            distances = get_distance_sphere_lonlat(coords1,coords2)
 
-                distances = get_distance_sphere_lonlat(coords1,coords2)
+            masking_radius = np.max([fac_theta_500*catalogue_new.catalogue["theta_500"][0],radius_arcmin])
+            indices_remove = np.where(distances < masking_radius)[0]
 
-                masking_radius = np.max([fac_theta_500*catalogue_new.catalogue["theta_500"][0],radius_arcmin])
-                indices_remove = np.where(distances < masking_radius)[0]
-
-                catalogue = remove_catalogue_indices(catalogue,indices_remove)
-
-            elif i == 1:
-
-                catalogue_new = get_catalogue_indices(catalogue,[0])
-                catalogue_merged.append(catalogue_new,append_keys="new")
-                indices_remove = [0]
-                catalogue = remove_catalogue_indices(catalogue,indices_remove)
+            catalogue = remove_catalogue_indices(catalogue,indices_remove)
 
             i = len(catalogue.catalogue["lon"])
-
-            if i == 0:
-
-                break
 
         #    print(i,len(indices_remove),catalogue_merged.catalogue["q_opt"])
 
@@ -301,12 +274,19 @@ def get_affinity_spherical(X):
 
     return pairwise_distances(X,X,metric=get_distance_sphere_lonlat)
 
+def to_scalar(arr):
+    """If arr is a 1-d len-1 array, return scalar. For passing to healpy functions."""
+    if isinstance(arr, np.ndarray) and arr.ndim==1 and arr.size==1:
+        return arr[0]
+    else:
+        return arr
+
 def get_distance_sphere_lonlat(coords1,coords2):
 
-    lon1 = coords1[0]
-    lat1 = coords1[1]
-    lon2 = coords2[0]
-    lat2 = coords2[1]
+    lon1 = to_scalar(coords1[0])
+    lat1 = to_scalar(coords1[1])
+    lon2 = to_scalar(coords2[0])
+    lat2 = to_scalar(coords2[1])
 
     distance = hp.rotator.angdist((lon1,lat1),(lon2,lat2),lonlat=True)*180.*60./np.pi
 
