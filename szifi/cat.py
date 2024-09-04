@@ -60,6 +60,10 @@ class cluster_catalogue:
     def get_lonlat(self,n_side,i,pix):
 
         lon,lat = sphere.get_lonlat(i,self.catalogue["theta_x"]-pix.nx*pix.dx*0.5,self.catalogue["theta_y"]-pix.nx*pix.dx*0.5,n_side)
+        if np.isscalar(lon):
+            lon = np.array([lon])
+        if np.isscalar(lat):
+            lat = np.array([lat])
         self.catalogue["lon"] = lon
         self.catalogue["lat"] = lat
 
