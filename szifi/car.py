@@ -73,7 +73,7 @@ def make_healpix_tiles_car(nside, car_geometry, dtype=None, order=None):
     tiles_car = reproject.healpix2map(tiles_hp, full_shape, wcs, method="spline", order=0)
     return tiles_car
 
-def make_tile(imap, dx_deg, field_shape, center_radec_deg, project_func, dtype=None, order=None, maskval=None, savename=None):
+def make_tile(imap, dx_deg, field_shape, center_radec_deg, project_func, dtype=None, order=None, maskval=None, flip=True, savename=None):
     """Project onto a tile
     imap: map to project. Can be healpix, enmap, or alms depending on project_func
     dx_deg: pixel size in degrees
@@ -83,6 +83,7 @@ def make_tile(imap, dx_deg, field_shape, center_radec_deg, project_func, dtype=N
     dtype: Only used/needed for project_car_sht
     order: Order of the spline interpolation, only used for that
     maskval: Apply a (tile==maskval) cut before returning; used for making a tile mask
+    flip: Flip the tile along the vertical axis. This is to match the behaviour of szifi.sphere.get_cutout
     savename: filename to save to
     Return: enmap tile
     """
@@ -90,12 +91,14 @@ def make_tile(imap, dx_deg, field_shape, center_radec_deg, project_func, dtype=N
     tile = project_func(imap, (field_shape, target_wcs), dtype, order)
     if maskval is not None:
         tile = (tile == maskval)
+    if flip:
+        tile = np.flip(tile, axis=0)
     if savename is not None:
         np.save(savename, tile)
     return tile
 
 ### Project many tiles ###
-def make_all_masks(nside, dx_deg, field_shape, healpix_ids, savename_prefix='map', verbosity=1, imin=0, imax=int(1e10)):
+def make_all_masks(nside, dx_deg, field_shape, healpix_ids, savename_prefix='map', verbosity=1, imin=0, imax=int(1e10), flip=True):
     """Make tile masks for a map. See make_all_tiles for params"""
     vprint = make_vprint(verbosity)
     fsize = len(str(np.max(healpix_ids))) # Max number of digits in id, for the filename
@@ -105,10 +108,10 @@ def make_all_masks(nside, dx_deg, field_shape, healpix_ids, savename_prefix='map
     for ii in np.arange(imin, min(imax, healpix_ids.size)):
         field_id = healpix_ids[ii]
         tilemaskname = savename_prefix + f"_tile{field_id:0{fsize}d}_tilemask.npy"
-        make_tile(nside, dx_deg, field_shape, (ra_deg[ii], dec_deg[ii]), make_healpix_tiles_car, maskval=field_id, savename=tilemaskname)
+        make_tile(nside, dx_deg, field_shape, (ra_deg[ii], dec_deg[ii]), make_healpix_tiles_car, maskval=field_id, flip=flip, savename=tilemaskname)
         vprint(f"{ii+1}/{len(healpix_ids)}", 2)
 
-def make_all_tiles(imap, nside, dx_deg, field_shape, healpix_ids, projection_method, sht_lmax=None, alm_fn=None, order=3, savename_prefix='map', verbosity=1, imin=0, imax=int(1e10)):
+def make_all_tiles(imap, nside, dx_deg, field_shape, healpix_ids, projection_method, sht_lmax=None, alm_fn=None, order=3, savename_prefix='map', verbosity=1, imin=0, imax=int(1e10), flip=True):
     """Project a CAR map onto tiles defined by healpixels
     imap: map to project
     nside: NSIDE of healpix map defining the logical tiles
@@ -149,5 +152,5 @@ def make_all_tiles(imap, nside, dx_deg, field_shape, healpix_ids, projection_met
     for ii in np.arange(imin, min(imax, healpix_ids.size)):
         field_id = healpix_ids[ii]
         tilename = savename_prefix + f"_tile{field_id:0{fsize}d}.npy"
-        make_tile(imap, dx_deg, field_shape, (ra_deg[ii], dec_deg[ii]), project_fn, dtype, order, None, tilename)
+        make_tile(imap, dx_deg, field_shape, (ra_deg[ii], dec_deg[ii]), project_fn, dtype, order, None, flip, tilename)
         vprint(f"{ii+1}/{len(healpix_ids)}", 2)
