@@ -33,7 +33,7 @@ params_szifi_default = {
 "norm_type": "centre",
 "n_clusters_true": 1000, #maximum number of true clusters for which to extract signal
 "min_ftile":0.3, #minimum unmasked fraction of tile for it to be considered for cluster finding
-"tilemask_mode": "catalogue", # "catalogue" or "field"
+"tilemask_mode": "catalogue", # "catalogue", "catalogue_buffer", or "field"
 "tilemask_buffer_arcmin": 15,
 
 "theta_find": "input",

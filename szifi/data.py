@@ -80,7 +80,7 @@ class input_data:
                 mask_select = mask_select_no_tile*mask_tile
                 mask_select = maps.get_fsky_criterion_mask(self.pix,mask_select,self.nside_tile,criterion=params_szifi["min_ftile"])
 
-                if params_szifi["tilemask_mode"] == "catalogue":
+                if params_szifi["tilemask_mode"] == "catalogue_buffer":
                     mask_select_buffer = mask_select_no_tile * \
                                          maps.get_buffer_region(self.pix, mask_tile, params_szifi["tilemask_buffer_arcmin"])
                 else:

@@ -255,6 +255,19 @@ class cluster_finder:
                     mask_peak_finding_dict = {"field": self.mask_peak_finding_no_tile, "names": mask_peak_finding_names_list}
                     if i == 0:
                         del self.mask_peak_finding # Not needed
+                    mask_select_names_dict = {"field":["field", "tile"]}
+                    mask_select_dict = {"field": self.mask_select_no_tile, "tile": self.mask_select,
+                                        "names": mask_select_names_dict}
+                    catalogue_find_key = ("field", "tile")
+                    catalogue_buffer_key = "empty"
+                    for_masking_key = ("field", "field")
+                
+                elif tilemask_mode == "catalogue_buffer": # Peak-find on whole field and apply tile mask to catalogues
+                    # Includes a "buffer" catalogue to ensure no clusters are missed on the borders of the tiles
+                    mask_peak_finding_names_list = ["field"]
+                    mask_peak_finding_dict = {"field": self.mask_peak_finding_no_tile, "names": mask_peak_finding_names_list}
+                    if i == 0:
+                        del self.mask_peak_finding # Not needed
                     mask_select_names_dict = {"field":["field", "tile", "buffer"]}
                     mask_select_dict = {"field": self.mask_select_no_tile, "tile": self.mask_select,
                                         "buffer": self.mask_select_buffer, "names": mask_select_names_dict}
