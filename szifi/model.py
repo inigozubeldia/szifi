@@ -171,7 +171,7 @@ class gnfw:
         self.theta_vec = theta_vec
 
         y_vec[0] = 0.
-        Y_aperture = integrate.simps(y_vec*2.*np.pi*theta_vec,theta_vec)
+        Y_aperture = integrate.simpson(y_vec*2.*np.pi*theta_vec,theta_vec)
 
         return Y_aperture
 
