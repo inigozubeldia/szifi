@@ -196,8 +196,8 @@ def integrate_sed_bandpass(sed_func=None,exp=None):
         nu = exp.nu_transmission_list[i]
         sed = sed_func(nu)*muK_to_MJysr(nu)
 
-        sed_bandpass[i] = integrate.simps(transmission*sed,nu)
-        conversion[i] = integrate.simps(transmission*muK_to_MJysr(nu),nu)
+        sed_bandpass[i] = integrate.simpson(transmission*sed,nu)
+        conversion[i] = integrate.simpson(transmission*muK_to_MJysr(nu),nu)
 
     sed_bandpass = sed_bandpass/conversion
 
