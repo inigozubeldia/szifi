@@ -261,7 +261,7 @@ class cluster_finder:
                     catalogue_find_key = ("field", "tile")
                     catalogue_buffer_key = "empty"
                     for_masking_key = ("field", "field")
-                
+
                 elif tilemask_mode == "catalogue_buffer": # Peak-find on whole field and apply tile mask to catalogues
                     # Includes a "buffer" catalogue to ensure no clusters are missed on the borders of the tiles
                     mask_peak_finding_names_list = ["field"]
