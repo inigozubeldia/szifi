@@ -29,7 +29,7 @@ Several sample scripts illustrating how the code works on real Planck data and s
 SZiFi has been significantly upgraded on 06/05/2025:
 
 - It can now be applied to maps in the CAR projection through a new interface with the [pixell](https://github.com/simonsobs/pixell/tree/master) library, with tiles defined as RA and dec limits. See the example on test_files/run_szifi_so_car.py.
-- The way the data is interfaced with the code has been simplified. Now, each dataset is defined through a survey data file. The two survey data files needed to run the test samples on `szifi/test_files` are provided in `szifi/survey_data_files`.
+- The way the data is interfaced with the code has been simplified. Now, each dataset is defined through a survey data file. The two survey data files needed to run the test samples on `szifi/test_files` are provided in `szifi/surveys`.
 
 ### 30/08/2024: Code upgrade
 
