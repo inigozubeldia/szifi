@@ -49,7 +49,7 @@ class gnfw:
     #          self.P_Delta = self.G*self.M*self.Delta*self.rho_c*self.cosmology.Omb/self.cosmology.Om0/(2.*self.R_Delta)
 
 
-    def get_p_cal_map(self,pix,c_500,theta_misc=[0.,0.]):
+    def get_p_cal_map(self,pix,c_500,theta_misc=[0.,0.],tile_type="healpix",wcs=None):
 
         #theta_max = np.sqrt((nx*dx)**2+(ny*dy)**2)*0.5*1.1
         theta_max = self.theta_Delta*self.my_params_sz.R_truncation
@@ -61,16 +61,34 @@ class gnfw:
             x = theta_vec[i]/self.theta_Delta
             p_cal_vec[i] = self.get_p_cal_int(x)
 
-        from .maps import rmap
+        if tile_type == "healpix":
 
-        theta_map = rmap(pix).get_distance_map_wrt_centre(theta_misc)
+            from .maps import rmap
+
+            theta_map = rmap(pix).get_distance_map_wrt_centre(theta_misc)
+
+        elif tile_type == "car":
+
+            from pixell import enmap, utils, enplot
+
+            position_map = enmap.empty((pix.nx,pix.ny),wcs)
+            pos = position_map.posmap()  # shape: (2, Ny, Nx)
+            dec_map, ra_map = pos
+            pix_center = [(pix.nx - 1) / 2, (pix.ny - 1) / 2]
+            dec0, ra0 = enmap.pix2sky(position_map.shape,wcs,pix_center)
+
+            theta_map = utils.angdist([ra0,dec0], [ra_map,dec_map]) 
+
+            # plot = enplot.plot(1/theta_map**2, colorbar=True, downgrade=2)
+            # enplot.write("figures/dist_map", plot)
+
         p_cal_map = np.interp(theta_map,theta_vec,p_cal_vec,right=0.)
 
         return p_cal_map
 
-    def get_y_map(self,pix,theta_misc=[0.,0.]):
+    def get_y_map(self,pix,theta_misc=[0.,0.],tile_type="healpix",wcs=None):
 
-        p_cal_map = self.get_p_cal_map(pix,self.c,theta_misc)
+        p_cal_map = self.get_p_cal_map(pix,self.c,theta_misc,tile_type=tile_type,wcs=wcs)
         y_map = self.p_cal_to_y(p_cal_map)
 
         return y_map
@@ -92,22 +110,6 @@ class gnfw:
     def get_y_at_angle(self,theta): #angle in rad
 
         return self.p_cal_to_y(self.get_p_cal_int(theta/self.theta_Delta))
-
-    def get_y_map_convolved(self,pix,fwhm_arcmin,theta_misc=[0.,0.]):
-
-        return maps.get_gaussian_convolution(self.get_y_map(pix,theta_misc=theta_misc),fwhm_arcmin,pix)
-
-    def get_y_norm_convolved(self,pix,fwhm_arcmin,y_map=None,theta_misc=[0.,0.]):
-
-        if y_map == None:
-
-            y_map = self.get_y_map_convolved(pix,fwhm_arcmin,theta_misc)
-
-        (theta_x,theta_y) = theta_misc
-        x_coord = maps.rmap(pix).get_x_coord_map_wrt_centre(theta_x)[0,:]/self.theta_Delta
-        y_coord = maps.rmap(pix).get_y_coord_map_wrt_centre(theta_y)[:,0]/self.theta_Delta
-
-        return interpolate.interp2d(x_coord,y_coord,y_map)(1.,0.)
 
 
     def p_cal_to_y(self,p_cal_map):
@@ -207,13 +209,13 @@ class gnfw:
 
         return p_int
 
-    def get_t_map(self,pix,exp,theta_misc=[0.,0.],eval_type="standard",sed=None): #returns t map in units of muK
+    def get_t_map(self,pix,exp,theta_misc=[0.,0.],eval_type="standard",sed=None,tile_type="healpix",wcs=None): #returns t map in units of muK
 
-        if eval_type == "standard":
+        if eval_type == "standard": 
 
-            y_map = self.get_y_map(pix,theta_misc=theta_misc)
+            y_map = self.get_y_map(pix,theta_misc=theta_misc,tile_type=tile_type,wcs=wcs)
 
-        elif eval_type == "hankel":
+        elif eval_type == "hankel": #Doesn't work for CAR tiles for now
 
             y_map = self.get_y_map_hankel(pix,theta_misc=theta_misc)
 
@@ -256,7 +258,7 @@ class gnfw:
 
         return y_map
 
-    def get_t_map_convolved_hankel(self,pix,exp,theta_misc=[0.,0.],beam_type="gaussian",get_nc=False,sed=None):
+    def get_t_map_convolved_hankel(self,pix,exp,theta_misc=[0.,0.],beam_type="gaussian",get_nc=False,sed=None,tile_type="healpix"):
 
         theta_vec,t_vec_conv,t_vec = self.get_t_vec_convolved_hankel(pix,exp,beam_type=beam_type,get_nc=True,sed=sed)
 
@@ -340,7 +342,7 @@ class gnfw:
     #means "upwards", and in j "leftwards" (i.e., in both cases towards the origin)
 
     def get_t_map_convolved(self,pix,exp,theta_misc=[0.,0.],theta_cart=None,beam="gaussian",get_nc=False,
-    eval_type="standard",sed=None):
+    eval_type="standard",sed=None,tile_type="healpix",wcs=None):
 
         if theta_cart != None:
 
@@ -349,9 +351,9 @@ class gnfw:
 
         if eval_type == "standard":
 
-            tmap = self.get_t_map(pix,exp,theta_misc=theta_misc,eval_type=eval_type,sed=sed)
+            tmap = self.get_t_map(pix,exp,theta_misc=theta_misc,eval_type=eval_type,sed=sed,tile_type=tile_type,wcs=wcs)
             from .maps import convolve_tmap_experiment
-            tmap_convolved = convolve_tmap_experiment(pix,tmap,exp,beam_type=beam)
+            tmap_convolved = convolve_tmap_experiment(pix,tmap,exp,beam_type=beam,tile_type=tile_type,wcs=wcs)
 
         elif eval_type == "hankel":
 

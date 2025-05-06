@@ -95,7 +95,11 @@ class rmap:
 
     def get_lxly(self):
 
-        return np.meshgrid(np.fft.fftfreq(self.ny,self.dy)*2.*np.pi,np.fft.fftfreq(self.nx,self.dx)*2.*np.pi)
+        lx,ly = np.meshgrid(np.fft.fftfreq(self.nx,self.dx)*2.*np.pi,np.fft.fftfreq(self.ny,self.dy)*2.*np.pi)
+        lx = lx.transpose()
+        ly = ly.transpose()
+
+        return lx,ly
 
     def get_ell(self):
 
@@ -252,7 +256,9 @@ def get_ifft_f(tmap,pix):
     return ret
 
 def filter_fft(map_fft,pix,ell_filter, indices_filter=None):
+
     if indices_filter is None:
+
         [lmin,lmax] = ell_filter
         indices_filter = np.where((rmap(pix).get_ell() < lmin) |  (rmap(pix).get_ell() > lmax))
 
@@ -645,7 +651,6 @@ def cl_to_map(ell,cl,pix,lmax=None):
 
         indices = np.where(ell_map > lmax)
         ret[indices] = 0.
-        print(np.where(ret==0.))
 
     return ret
 
@@ -776,83 +781,55 @@ def get_theta_from_ij(i,j,pix):
     return theta_x,theta_y
 
 
-def get_buffered_mask(pix,mask_input,buffer_arcmin,type="fft"):
+def get_buffered_mask(pix,mask_input,buffer_arcmin,type="fft",tile_type="healpix",wcs=None):
 
-    if type == "fft":
+    buffer_rad = buffer_arcmin/60./180.*np.pi
+    buffer_pix_x = int(round(buffer_arcmin/60./180.*np.pi/pix.dx))+1
+    buffer_pix_y = int(round(buffer_arcmin/60./180.*np.pi/pix.dy))+1
 
-        buffer_rad = buffer_arcmin/60./180.*np.pi
-        buffer_pix = int(round(buffer_arcmin/60./180.*np.pi/pix.dx))+1
+    nx_padded = pix.nx+4*buffer_pix_x
+    ny_padded = pix.ny+4*buffer_pix_y
 
-        nx_padded = pix.nx+4*buffer_pix
-        ny_padded = pix.ny+4*buffer_pix
+    mask_input_padded = np.ones((nx_padded,ny_padded))
+    mask_input_padded[2*buffer_pix_x:nx_padded-2*buffer_pix_x,2*buffer_pix_y:ny_padded-2*buffer_pix_y] = mask_input
+    pix_padded = pixel(nx_padded,pix.dx,ny=ny_padded,dy=pix.dy)
 
-        mask_input_padded = np.ones((nx_padded,ny_padded))
-        mask_input_padded[2*buffer_pix:nx_padded-2*buffer_pix,2*buffer_pix:ny_padded-2*buffer_pix] = mask_input
+    kernel = np.zeros((pix_padded.nx,pix_padded.ny))
 
-        pix_padded = pixel(nx_padded,pix.dx,ny=ny_padded,dy=pix.dy)
+    if tile_type == "healpix":
 
-        kernel = np.zeros((pix_padded.nx,pix_padded.ny))
         distances = rmap(pix_padded).get_distance_map_wrt_centre()
-        indices = np.where(distances <= buffer_rad)
-        kernel[indices] = 1.
-        kernel_area = np.sum(kernel)
 
-        mask_convolved = np.around(sg.fftconvolve(mask_input_padded,kernel,mode='same')/kernel_area,decimals=4)[2*buffer_pix:nx_padded-2*buffer_pix,2*buffer_pix:ny_padded-2*buffer_pix]
+    elif tile_type == "car":
 
-        mask_output = np.ones(mask_input.shape)
-        mask_output[np.where(mask_convolved != 1.)] = 0.
+        from pixell import enmap, utils
 
-    elif type == "brute_force":
+        mask_input_padded = enmap.enmap(mask_input_padded,wcs)
+        position_map = enmap.empty(mask_input_padded.shape,wcs)
+        pos = position_map.posmap()  # shape: (2, Ny, Nx)
+        dec_map, ra_map = pos
+        pix_center = [(mask_input_padded.shape[-2] - 1) / 2, (mask_input_padded.shape[-1] - 1) / 2]
+        dec0, ra0 = enmap.pix2sky(mask_input_padded.shape,wcs,pix_center)
 
-        mask_output = np.ones(mask_input.shape)
-        buffer_pix = int(round(buffer_arcmin/60./180.*np.pi/pix.dx))+1
+        distances = utils.angdist([ra0,dec0], [ra_map,dec_map]) 
 
-        for i in range(0,mask_input.shape[0]):
+    indices = np.where(distances <= buffer_rad)
+    kernel[indices] = 1.
+    kernel_area = np.sum(kernel)
 
-            for j in range(0,mask_input.shape[1]):
+    mask_convolved = np.around(sg.fftconvolve(mask_input_padded,kernel,mode='same')/kernel_area,decimals=4)[2*buffer_pix_x:nx_padded-2*buffer_pix_x,2*buffer_pix_y:ny_padded-2*buffer_pix_y]
 
-                theta_x = j*pix.dy
-                theta_y = (pix.nx-i)*pix.dx
-                theta_cart = [theta_x,theta_y]
-                distances = rmap(pix).get_distance_map_wrt_centre(theta_misc=get_theta_misc(theta_cart,pix))
-
-                imin = i-buffer_pix
-                imax = i+buffer_pix
-                jmin = j-buffer_pix
-                jmax = j+buffer_pix
-
-                if imin < 0:
-
-                    imin = 0
-
-                if imax >= pix.nx:
-
-                    imax = pix.nx-1
-
-                if jmin < 0:
-
-                    jmin = 0
-
-                if jmax >= pix.nx:
-
-                    jmax = pix.nx-1
-
-                distances_select = distances[imin:imax,jmin:jmax]
-                mask_select = mask_input[imin:imax,jmin:jmax]
-
-                indices = np.where(distances_select <= buffer_arcmin/60./180.*np.pi)
-                mask_select = mask_select[indices]
-
-                if 0. in mask_select:
-
-                    mask_output[i,j] = 0.
+    mask_output = np.ones(mask_input.shape)
+    mask_output[np.where(mask_convolved != 1.)] = 0.
 
     return mask_output
 
 def get_buffer_region(pix, mask, buffer_arcmin):
+
     buffered_mask = get_buffered_mask(pix, mask, buffer_arcmin, type='fft')
     ibuffered_mask = get_buffered_mask(pix, 1-mask, buffer_arcmin, type='fft')
     buffer_region = 1 - buffered_mask - ibuffered_mask
+
     return buffer_region
 
 #apotype: C1, C2 and Smooth
@@ -868,9 +845,16 @@ def get_apodised_mask(pix,mask_input2,apotype="C1",aposcale=0.2):
 
     return nmt.mask_apodization_flat(mask_input,pix.nx*pix.dx,pix.ny*pix.dy,aposcale,apotype=apotype)
 
-def get_fsky_criterion_mask(pix,mask_select,nside_tile,criterion=0.3):
+def get_fsky_criterion_mask(pix,mask_select,nside_tile,criterion=0.3,tile_type="healpix"):
 
-    area_tile = hp.pixelfunc.nside2pixarea(nside_tile)
+    if tile_type == "healpix":
+
+        area_tile = hp.pixelfunc.nside2pixarea(nside_tile)
+
+    elif tile_type == "car": #note that this is not the physical area, but that's okay here 
+
+        area_tile = pix.nx*pix.ny*pix.dx*pix.dy
+
     area_select = np.sum(mask_select)*pix.dx*pix.dy
     frac = area_select/area_tile
 
@@ -882,33 +866,37 @@ def get_fsky_criterion_mask(pix,mask_select,nside_tile,criterion=0.3):
 
 class ps_mask:
 
-    def __init__(self,pix,n_source,r_source_arcmin):
+    def __init__(self,pix,n_source,r_source_arcmin,tile_type="healpix",wcs=None):
 
         self.pix = pix
         self.n_source = n_source
         self.r_source_arcmin = r_source_arcmin
-
-    def get_source_coords(self): #with respect to the centre of the map
-
-        source_coords = np.random.rand(self.n_source,2)-0.5
-        source_coords[:,0] = source_coords[:,0]*self.pix.nx*self.pix.dx
-        source_coords[:,1] = source_coords[:,1]*self.pix.ny*self.pix.dy
-
-        return source_coords
+        self.tile_type = tile_type
+        self.wcs = wcs
+        self.r_source = self.r_source_arcmin/60./180.*np.pi
 
     def get_mask_map(self,source_coords=None):
 
-        if source_coords is None:
-
-            source_coords = self.get_source_coords()
-
         mask = np.ones((self.pix.nx,self.pix.ny))
+
+        if self.tile_type == "car":
+
+            from pixell import enmap, utils
 
         for i in range(0,self.n_source):
 
-            distances = rmap(self.pix).get_distance_map_wrt_centre(theta_misc=source_coords[i,:])
-            r_source = self.r_source_arcmin/60./180.*np.pi
-            indices = np.where(distances <= r_source)
+            if self.tile_type == "healpix":
+
+                distances = rmap(self.pix).get_distance_map_wrt_centre(theta_misc=source_coords[i,:])
+
+            elif self.tile_type == "car":
+
+                position_map = enmap.empty(mask.shape,self.wcs)
+                pos = position_map.posmap()  # shape: (2, Ny, Nx)
+                dec_map, ra_map = pos
+                distances = utils.angdist([source_coords[i,0],source_coords[i,1]], [ra_map,dec_map]) 
+
+            indices = np.where(distances <= self.r_source)
             mask[indices] = 0.
 
         return mask
@@ -981,7 +969,7 @@ def get_binned_mean_map(map,pix,bins,fft_flag=False):
 
     return bins_centres,binned_map
 
-def convolve_tmap_experiment(pix,tmap,exp,freqs=None,beam_type="gaussian"):
+def convolve_tmap_experiment(pix,tmap,exp,freqs=None,beam_type="gaussian",tile_type="healpix",wcs=None):
 
     n_freqs = tmap.shape[2]
     freqs = np.arange(n_freqs)
@@ -989,13 +977,29 @@ def convolve_tmap_experiment(pix,tmap,exp,freqs=None,beam_type="gaussian"):
 
     for i in range(0,n_freqs):
 
-        if beam_type == "gaussian":
+        if tile_type == "healpix":
 
-            tmap_convolved[:,:,i] = get_gaussian_convolution(tmap[:,:,i],exp.FWHM[freqs[i]],pix)
+            if beam_type == "gaussian":
 
-        elif beam_type == "real":
+                tmap_convolved[:,:,i] = get_gaussian_convolution(tmap[:,:,i],exp.FWHM[freqs[i]],pix)
 
-            tmap_convolved[:,:,i] = get_convolution_isotropic(tmap[:,:,i],exp.get_beam(freqs[i]),pix)
+            elif beam_type == "real":
+
+                tmap_convolved[:,:,i] = get_convolution_isotropic(tmap[:,:,i],exp.get_beam(freqs[i]),pix)
+
+        elif tile_type == "car":
+
+            from pixell import enmap, enplot
+
+            if beam_type == "gaussian":
+
+                map_freq = enmap.enmap(tmap[:,:,i],wcs)
+                sigma = exp.FWHM[freqs[i]]/(2.*np.sqrt(2.*np.log(2)))/60./180.*np.pi
+                tmap_convolved[:,:,i] = enmap.smooth_gauss(map_freq, sigma)
+
+            elif beam_type == "real":
+
+                tmap_convolved = None #todo
 
     return tmap_convolved
 
@@ -1288,3 +1292,75 @@ def diffusive_inpaint(image,mask,n_inpaint):
                 inpainted_image[x,y] = value/c
 
     return inpainted_image
+
+#Expand CAR map by 1 degree (physical distance, not coordinate difference) from all four edges:
+
+def get_expanded_map_car(full_map, radec, expansion_deg=1.0):
+
+    from pixell import utils as pixell_utils
+
+    [ra_min,ra_max,dec_min,dec_max] = radec
+
+    ra_min_expanded = ra_min - expansion_deg
+    ra_max_expanded = ra_max + expansion_deg
+
+    def move_point_constant_dec(dec,ra,expansion_degree):
+
+        # Convert to radians
+        theta = np.radians(90 - dec)  # colatitude
+        phi = np.radians(ra)
+
+        # Convert to 3D vector
+        vec = hp.ang2vec(theta, phi)
+
+        # Define rotation: about Z axis by -1 deg (westward), keeping Dec constant
+        rot = hp.Rotator(rot=[expansion_degree/np.sin(theta), 0, 0], deg=True)
+        vec_rot = rot(vec)
+
+        # Convert back to angles
+        theta_new, phi_new = hp.vec2ang(vec_rot)
+        ra_new = np.degrees(phi_new) % 360  # wraparound
+
+        return ra_new
+
+    def ra_rightmost(ra1, ra2):
+        # Returns the RA value (in degrees) that is most to the right/east
+        diff = (ra2 - ra1) % 360
+        return ra2 if diff < 180 else ra1
+
+    def ra_leftmost(ra1, ra2):
+        # Returns the RA value (in degrees) that is most to the left/west
+        diff = (ra2 - ra1) % 360
+        return ra1 if diff < 180 else ra2
+
+    ra_topleft_expanded = move_point_constant_dec(dec_max,ra_min,expansion_degree=expansion_deg)
+    ra_topright_expanded = move_point_constant_dec(dec_max,ra_max,expansion_degree=-expansion_deg)
+    ra_bottomleft_expanded = move_point_constant_dec(dec_min,ra_min,expansion_degree=expansion_deg)
+    ra_bottomright_expanded = move_point_constant_dec(dec_min,ra_max,expansion_degree=-expansion_deg)
+
+    # print(ra_min,ra_max)
+    # print(ra_topleft_expanded,ra_bottomleft_expanded)
+    # print(ra_topright_expanded,ra_bottomright_expanded)
+
+    ra_min_expanded = ra_leftmost(ra_bottomleft_expanded,ra_topleft_expanded)[0]
+    ra_max_expanded = ra_rightmost(ra_topright_expanded,ra_bottomright_expanded)[0]
+
+    dec_min_expanded = dec_min - expansion_deg
+    dec_max_expanded = dec_max + expansion_deg
+
+    # print(dec_min,dec_min_expanded)
+    # print(dec_max,dec_max_expanded)
+    # print(ra_min,ra_min_expanded)
+    # print(ra_max,ra_max_expanded)
+
+    submap_expanded = full_map.submap([[dec_min_expanded*pixell_utils.degree,ra_min_expanded*pixell_utils.degree], [dec_max_expanded*pixell_utils.degree,ra_max_expanded*pixell_utils.degree]])
+
+    dec_map, ra_map = submap_expanded.posmap()
+    dec_map = np.degrees(dec_map)
+    ra_map = np.degrees(ra_map)
+
+
+    mask = ((dec_map >= dec_min) & (dec_map <= dec_max) &
+            ((ra_map - ra_min) % (360.) <= (ra_max - ra_min) % (360.))).astype(float)
+
+    return submap_expanded, mask

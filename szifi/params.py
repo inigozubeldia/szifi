@@ -14,6 +14,7 @@ params_szifi_default = {
 "decouple_type": "master", # "master", "none", or "fsky"
 "save_coupling_matrix": False, #if True, the power spectra coupling matrix is saved (old save_mask)
 "compute_coupling_matrix": False, #if True, the coupling matrix is computed from scratch, otherwise it is loaded
+"coupling_matrix_needed": True, #whether the coupling matrix is needed (e.g., not needed in fsky or none decoupling)
 "powspec_lmax1d": None, # maximum lmax for power spectra. Maps and masks will be degraded to this lmax before computing coupling matrix and power spectra
 "powspec_new_shape": None, # New shape for calculating powspec on lower resolution map. One of this and powspec_lmax1d must be 'None'
 "powspec_bin_fac": 4, # Factor by which to bin Cls. There will be nx/bin_fac bins of width bin_fac * (pi/(nx*dx)) for a field of nx^2 pixels
@@ -35,12 +36,15 @@ params_szifi_default = {
 "min_ftile":0.3, #minimum unmasked fraction of tile for it to be considered for cluster finding
 "tilemask_mode": "field", # "catalogue", "catalogue_buffer", or "field"
 "tilemask_buffer_arcmin": 15,
+"tile_type": "healpix", #"healpix" or "car"
+
 
 "theta_find": "input",
 "detection_method": "maxima_lomem",
 "apod_type": "old",
 "path": "/Users/inigozubeldia/Desktop/szifi/",
 "path_data": "/Users/inigozubeldia/Desktop/szifi/data/",
+"survey_file": "/Users/inigozubeldia/Desktop/szifi/surveys/data_planck.py",
 "save_and_load_template": True,
 "path_template": "/Users/inigozubeldia/Desktop/szifi/data/templates/",
 "map_dtype": np.float32,

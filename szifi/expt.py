@@ -58,11 +58,17 @@ class experiment:
 
         elif self.experiment_name == "SObaseline_simple": #from https://arxiv.org/pdf/1808.07445.pdf
 
-            self.nu_eff = np.array([27.,39.,93.,145.,225.,278.])*1e9
-            self.FWHM = np.array([7.4,5.1,2.2,1.4,1.,0.9])
-            self.noise_levels = np.array([71.,36.,8.,10.,22.,54.])
-            self.MJysr2muK = np.array([4.1877e3,2.632e3,2.0676e3,3.371e3,1.7508e4,6.9653e5])
-            self.tsz_sed = np.array([-5.3487e6,-5.2384e6,-4.2840e6,-2.7685e6,3.1517e5,2.7314e6])
+            # self.nu_eff = np.array([27.,39.,93.,145.,225.,278.])*1e9
+            # self.FWHM = np.array([7.4,5.1,2.2,1.4,1.,0.9])
+            # self.noise_levels = np.array([71.,36.,8.,10.,22.,54.])
+            # self.MJysr2muK = np.array([4.1877e3,2.632e3,2.0676e3,3.371e3,1.7508e4,6.9653e5])
+            # self.tsz_sed = np.array([-5.3487e6,-5.2384e6,-4.2840e6,-2.7685e6,3.1517e5,2.7314e6])
+
+            self.nu_eff = np.array([93.,145.,225.,278.])*1e9
+            self.FWHM = np.array([2.2,1.4,1.,0.9])
+            self.noise_levels = np.array([8.,10.,22.,54.])
+            self.MJysr2muK = np.array([2.0676e3,3.371e3,1.7508e4,6.9653e5])
+            self.tsz_sed = np.array([-4.2840e6,-2.7685e6,3.1517e5,2.7314e6])
 
         elif self.experiment_name == "SOgoal_simple": #from https://arxiv.org/pdf/1808.07445.pdf
 

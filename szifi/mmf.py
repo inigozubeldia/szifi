@@ -21,6 +21,7 @@ class cluster_finder:
         self.exp = self.data_file["experiment"]
         self.cosmology = model.cosmological_model(self.params_szifi).cosmology
         self.indices_filter=None
+        self.wcs = None
 
         if self.params_szifi["detection_method"] == "DBSCAN":
 
@@ -74,8 +75,11 @@ class cluster_finder:
 
             map_dtype = self.params_szifi["map_dtype"]
 
-            self.t_obs = utils.extract(self.data_file,"t_obs",field_id,map_dtype) #in muK
-            self.t_noi = utils.extract(self.data_file,"t_noi",field_id,map_dtype) #in muK
+            # self.t_obs = utils.extract(self.data_file,"t_obs",field_id,map_dtype) #in muK
+            # self.t_noi = utils.extract(self.data_file,"t_noi",field_id,map_dtype) #in muK
+
+            self.t_obs = self.data_file["t_obs"][field_id] #in muK
+            self.t_noi = self.data_file["t_noi"][field_id] #in muK           
 
             self.mask_point = utils.extract(self.data_file,"mask_point",field_id,map_dtype)
             self.mask_ps = utils.extract(self.data_file,"mask_ps", field_id,map_dtype)
@@ -88,7 +92,18 @@ class cluster_finder:
 
             self.dx = self.data_file["dx_arcmin"][field_id]/60./180.*np.pi
             self.nx = self.data_file["nx"][field_id]
-            self.pix = maps.pixel(self.nx,self.dx)
+            self.dy = self.dx
+            self.ny = self.nx
+
+            if "dy_arcmin" in self.data_file:
+
+                self.dy = self.data_file["dy_arcmin"][field_id]/60./180.*np.pi
+
+            if "ny" in self.data_file:
+               
+                self.ny = self.data_file["ny"][field_id]
+
+            self.pix = maps.pixel(self.nx,self.dx,ny=self.ny,dy=self.dy)
 
             if self.params_szifi["decouple_type"] == "master" and self.params_szifi["compute_coupling_matrix"] == False:
 
@@ -101,6 +116,10 @@ class cluster_finder:
             if self.params_szifi["extraction_mode"] == "fixed":
 
                 self.catalogue_fixed = self.data_file["catalogue_input"][field_id]
+
+            if self.params_szifi["tile_type"] == "car":
+
+                self.wcs = self.t_obs.wcs
 
             #Select frequency channels to use
 
@@ -201,7 +220,7 @@ class cluster_finder:
                     bin_fac = self.params_szifi["powspec_bin_fac"]
                     self.ps = spec.power_spectrum(self.pix,
                     mask=self.mask_ps,
-                    cm_compute=True,
+                    cm_compute=self.params_szifi["coupling_matrix_needed"],
                     cm_compute_scratch=self.params_szifi["compute_coupling_matrix"],
                     cm_save=self.params_szifi["save_coupling_matrix"],
                     cm_name=self.coupling_matrix_name,
@@ -222,12 +241,12 @@ class cluster_finder:
 
                     self.inv_cov = self.cspec.get_inv_cov(self.pix,interp_type=self.params_szifi["interp_type"],bin_fac=bin_fac,new_shape=new_shape)
 
+                
                 #If power spectrum is theoretically predicted - testing not up to date, do not use
 
                 elif self.params_szifi["estimate_spec"] == "theory":
 
                     self.inv_cov = spec.cross_spec(self.params_szifi["freqs"]).get_inv_cov(self.pix,theory=True,cmb=True)
-
 
                 del self.mask_point
 
@@ -249,6 +268,7 @@ class cluster_finder:
                 mmf_type=self.params_szifi["mmf_type"])
 
                 tilemask_mode = self.params_szifi["tilemask_mode"]
+                
                 if tilemask_mode == "catalogue": # Peak-find on whole field and apply tile mask to catalogues
                     # Includes a "buffer" catalogue to ensure no clusters are missed on the borders of the tiles
                     mask_peak_finding_names_list = ["field"]
@@ -263,6 +283,7 @@ class cluster_finder:
                     for_masking_key = ("field", "field")
 
                 elif tilemask_mode == "catalogue_buffer": # Peak-find on whole field and apply tile mask to catalogues
+
                     # Includes a "buffer" catalogue to ensure no clusters are missed on the borders of the tiles
                     mask_peak_finding_names_list = ["field"]
                     mask_peak_finding_dict = {"field": self.mask_peak_finding_no_tile, "names": mask_peak_finding_names_list}
@@ -276,6 +297,7 @@ class cluster_finder:
                     for_masking_key = ("field", "field")
 
                 elif tilemask_mode == "field": # Apply tile mask before peak-finding. Legacy mode used for Planck.
+
                     mask_peak_finding_names_list = ["field", "tile"]
                     mask_peak_finding_dict = {"field": self.mask_peak_finding_no_tile, "tile": self.mask_peak_finding,
                                               "names": mask_peak_finding_names_list}
@@ -286,6 +308,7 @@ class cluster_finder:
                     for_masking_key = ("field", "field")
 
                 else:
+
                     raise ValueError(f"SziFi parameter tilemask_mode=\"{tilemask_mode}\" invalid. Allowed values are 'catalogue' and 'field'.")
 
                 #Matched filter construction
@@ -304,7 +327,8 @@ class cluster_finder:
                 mask_peak_finding_dict=mask_peak_finding_dict,
                 rank=self.rank,
                 exp=self.exp,
-                cmmf=self.cmmf)
+                cmmf=self.cmmf,
+                wcs=self.wcs)
 
                 #SZiFi in cluster finding mode: blind cluster detection
 
@@ -403,7 +427,15 @@ class cluster_finder:
 
                     break
 
-                clusters_masked_old_id,clusters_masked_new_id = cat.identify_clusters(clusters_masked_old,clusters_masked_new)
+                if self.params_szifi["tile_type"] == "healpix":
+
+                    lonlat = False
+
+                elif self.params_szifi["tile_type"] == "car":
+
+                    lonlat = "equatorial"
+
+                clusters_masked_old_id,clusters_masked_new_id = cat.identify_clusters(clusters_masked_old,clusters_masked_new,lonlat=lonlat)
 
                 if np.all(clusters_masked_old_id.catalogue["q_opt"]) != -1 and i > 0:
 
@@ -412,7 +444,9 @@ class cluster_finder:
                 mask_cluster = get_cluster_mask(self.pix,
                 self.results_for_masking,
                 self.params_szifi["q_th_noise"],
-                self.params_szifi["mask_radius"])
+                self.params_szifi["mask_radius"],
+                tile_type=self.params_szifi["tile_type"],
+                wcs=self.wcs)
 
                 clusters_masked_old = clusters_masked_new
 
@@ -426,8 +460,8 @@ class cluster_finder:
 
                     os.remove(self.filtered_maps.template_name % j_theta)
                     os.remove(self.filtered_maps.template_norm_name % j_theta)
-
-            if self.params_szifi["get_lonlat"] == True:
+            
+            if self.params_szifi["tile_type"] == "healpix" and self.params_szifi["get_lonlat"] == True:
 
                 self.results.get_lonlat(field_id,self.pix,nside=self.data_file["nside_tile"])
 
@@ -436,19 +470,28 @@ class cluster_finder:
 
 #Get mask at the location of detected clusters (for iterative noise covariance estimation)
 
-def get_cluster_mask(pix,catalogue,q_th_noise,mask_radius):
+def get_cluster_mask(pix,catalogue,q_th_noise,mask_radius,tile_type="healpix",wcs=None):
 
     mask_cluster = np.ones((pix.nx,pix.ny))
 
     for j in range(0,len(catalogue.catalogue["q_opt"])):
 
         if catalogue.catalogue["q_opt"][j] > q_th_noise:
-
-            x_est,y_est = maps.get_theta_misc([catalogue.catalogue["theta_x"][j],catalogue.catalogue["theta_y"][j]],pix)
+                
             source_coords = np.zeros((1,2))
-            source_coords[0,0] = x_est
-            source_coords[0,1] = y_est
-            mask_cluster *= maps.ps_mask(pix,1,catalogue.catalogue["theta_500"][j]*mask_radius).get_mask_map(source_coords=source_coords)
+
+            if tile_type == "healpix":
+
+                x_est,y_est = maps.get_theta_misc([catalogue.catalogue["theta_x"][j],catalogue.catalogue["theta_y"][j]],pix)
+                source_coords[0,0] = x_est
+                source_coords[0,1] = y_est
+
+            elif tile_type == "car":
+
+                source_coords[0,0] = catalogue.catalogue["ra"][j]
+                source_coords[0,1] = catalogue.catalogue["dec"][j]
+
+            mask_cluster *= maps.ps_mask(pix,1,catalogue.catalogue["theta_500"][j]*mask_radius,tile_type=tile_type,wcs=wcs).get_mask_map(source_coords=source_coords)
 
     return mask_cluster
 
@@ -458,7 +501,7 @@ class filter_maps:
 
     def __init__(self,t_obs=None,inv_cov=None,pix=None,cosmology=None,theta_500_vec=None,
     params=None,field_id=0,i_it=0,mask_map=None,mask_select_dict=None,
-    mask_peak_finding_dict=None,rank=0,exp=None,cmmf=None,params_model=None,indices_filter=None):
+    mask_peak_finding_dict=None,rank=0,exp=None,cmmf=None,params_model=None,indices_filter=None,wcs=None):
 
         self.t_obs = t_obs
         self.inv_cov = inv_cov
@@ -479,6 +522,7 @@ class filter_maps:
         self.exp = exp
         self.cmmf = cmmf
         self.indices_filter=indices_filter
+        self.wcs = wcs
 
         self.theta_range = [0.,pix.nx*pix.dx,0.,pix.ny*pix.dy]
 
@@ -536,10 +580,10 @@ class filter_maps:
 
             if self.params["save_and_load_template"] == False or (self.params["save_and_load_template"] == True and self.i_it == 0):
 
-                if self.params_model["profile_type"] == "point":
+                if self.params_model["profile_type"] == "point": #Todo: CAR functionality
 
                     ps = model.point_source(self.exp,beam_type=self.params["beam"])
-                    t_tem = ps.get_t_map_convolved(self.pix)
+                    t_tem = ps.get_t_map_convolved(self.pix,tile_type=self.params["tile_type"],wcs=self.wcs)
                     t_tem_norm = None
 
                 elif self.params_model["profile_type"] == "arnaud":
@@ -559,7 +603,10 @@ class filter_maps:
                         beam=self.params["beam"],
                         theta_cart=theta_cart,
                         get_nc=False,
-                        sed=False)
+                        sed=False,
+                        tile_type=self.params["tile_type"],
+                        wcs=self.wcs
+                        )
                         t_tem_norm = None
 
                     elif self.params["mmf_type"] == "spectrally_constrained" and self.params["cmmf_type"] == "general":
@@ -569,7 +616,10 @@ class filter_maps:
                         beam=self.params["beam"],
                         theta_cart=theta_cart,
                         get_nc=True,
-                        sed=False)
+                        sed=False,
+                        tile_type=self.params["tile_type"],
+                        wcs=self.wcs
+                        )
 
                         t_tem_norm = t_tem_norm/nfw.get_y_norm(self.params["norm_type"])
                         t_tem_norm = maps.filter_tmap(t_tem_norm,
@@ -662,8 +712,18 @@ class filter_maps:
 
         self.results = {}
 
-        x_coord = maps.rmap(self.pix).get_x_coord_map_wrt_origin() #vertical coordinate, in rad
-        y_coord = maps.rmap(self.pix).get_y_coord_map_wrt_origin() #horizontal coordinate, in rad
+        if self.params["tile_type"] == "healpix":
+
+            x_coord = maps.rmap(self.pix).get_x_coord_map_wrt_origin() #vertical coordinate, in rad
+            y_coord = maps.rmap(self.pix).get_y_coord_map_wrt_origin() #horizontal coordinate, in rad
+
+        elif self.params["tile_type"] == "car":
+
+            from pixell import enmap
+            position_map = enmap.empty(t_obs[:,:,0].shape,self.wcs)
+            dec_map, ra_map = position_map.posmap()
+            x_coord = ra_map
+            y_coord = dec_map
 
         for mask_name in self.mask_names_finding:
 
@@ -680,10 +740,15 @@ class filter_maps:
                 if self.mask_names_finding not in [['field'],['field','tile']]:
 
                     raise ValueError("mask list must be ['field'] or ['field','tile']")
+                
+                # import pylab as pl
+                # pl.figure()
+                # pl.imshow(self.q_tensor[:,:,0]*self.mask_select_dict[self.mask_names_select[mask_name][1]],vmax=5.)
+                # pl.savefig("figures/q_map.pdf",origin='lower')
+                # pl.show()
 
                 q_tensor = apply_mask_peak_finding(self.q_tensor,self.mask_peak_finding_dict[mask_name])
                 indices = make_detections(q_tensor,self.params["q_th"],self.pix,detection_method=self.params["detection_method"])
-
                 q_opt = q_tensor[indices]
                 y_tensor = apply_mask_peak_finding(self.y_tensor,self.mask_peak_finding_dict[mask_name])
                 y0_est = y_tensor[indices]
@@ -692,23 +757,31 @@ class filter_maps:
                 theta_est = self.theta_500_vec[indices[2]]
                 n_detect = len(q_opt)
 
-            theta_x = y_est + self.theta_range[0]
-            theta_y = self.pix.nx*self.pix.dx-x_est + self.theta_range[2]
-
             cat_new = cat.cluster_catalogue()
 
             cat_new.catalogue["q_opt"] = q_opt
             cat_new.catalogue["y0"] = y0_est
             cat_new.catalogue["theta_500"] = theta_est
-            cat_new.catalogue["theta_x"] = theta_x
-            cat_new.catalogue["theta_y"] = theta_y
-            cat_new.catalogue["pixel_ids"] = np.ones(len(q_opt))*self.field_id
+            cat_new.catalogue["pixel_ids"] = [self.field_id]*len(q_opt)
+
+            if self.params["tile_type"] == "healpix":
+
+                theta_x = y_est + self.theta_range[0]
+                theta_y = self.pix.nx*self.pix.dx-x_est + self.theta_range[2]
+                cat_new.catalogue["theta_x"] = theta_x
+                cat_new.catalogue["theta_y"] = theta_y
+
+            elif self.params["tile_type"] == "car":
+
+                cat_new.catalogue["ra"] = x_est
+                cat_new.catalogue["dec"] = y_est
 
             for mask_name_select in self.mask_names_select[mask_name]:
-                cat_new = cat.apply_mask_select(cat_new,self.mask_select_dict[mask_name_select],self.pix)
+                cat_new = cat.apply_mask_select(cat_new,self.mask_select_dict[mask_name_select],self.pix,tile_type=self.params["tile_type"],wcs=self.wcs)
                 self.results[(mask_name, mask_name_select)] = cat_new
 
         self.results["empty"] = cat.cluster_catalogue()
+
         return 0
 
     #Apply MMF for input catalogue
@@ -720,7 +793,17 @@ class filter_maps:
             t_true = maps.multiply_t(self.mask_map,t_true)
             t_true = maps.filter_tmap(t_true,self.pix,self.params["lrange"],indices_filter=self.indices_filter)
 
-        n_clus = len(true_catalogue.catalogue["theta_x"])
+        if self.params["tile_type"] == "healpix":
+
+            n_clus = len(true_catalogue.catalogue["theta_x"])
+            theta_0 = true_catalogue.catalogue["theta_x"]
+            theta_1 = true_catalogue.catalogue["theta_y"]
+
+        elif self.params["tile_type"] == "car":
+
+            n_clus = len(true_catalogue.catalogue["ra"])
+            theta_0 = true_catalogue.catalogue["ra"]
+            theta_1 = true_catalogue.catalogue["dec"]
 
         q_opt = np.zeros((n_clus,len(self.params["comp_to_calculate"])))
         y0_est = np.zeros((n_clus,len(self.params["comp_to_calculate"])))
@@ -729,16 +812,10 @@ class filter_maps:
 
             print("Extracting at true parameters")
 
-        t_true_unmasked = t_true
-
-        cmmf = self.cmmf
-
         for i in range(0,n_clus):
 
             z = 0.2
             M_500 = model.get_m_500(true_catalogue.catalogue["theta_500"][i],z,self.cosmology)
-
-            T = None
 
             if self.params["rSZ"] == True:
 
@@ -757,17 +834,6 @@ class filter_maps:
                 a_matrix = self.params["a_matrix"][self.params["freqs"],:]
                 a_matrix[:,0] = tsz_sed
 
-                cmmf = scmmf_precomputation(pix=self.pix,
-                freqs=self.params["freqs"],
-                inv_cov=self.inv_cov,
-                lrange=self.params["lrange"],
-                beam_type=self.params["beam"],
-                exp=self.exp,
-                cmmf_type=self.params["cmmf_type"],
-                a_matrix=a_matrix,
-                comp_to_calculate=self.params["comp_to_calculate"],
-                mmf_type=self.params["mmf_type"])
-
             q_extracted,y0_extracted,q_map = extract_at_input_value(t_true,
             self.inv_cov,
             self.pix,
@@ -776,8 +842,8 @@ class filter_maps:
             z,
             self.cosmology,
             self.params["norm_type"],
-            true_catalogue.catalogue["theta_x"][i],
-            true_catalogue.catalogue["theta_y"][i],
+            theta_0[i],
+            theta_1[i],
             self.params["lrange"],
             apod_type=self.params["apod_type"],
             mmf_type=self.params["mmf_type"],
@@ -788,6 +854,8 @@ class filter_maps:
             comp_to_calculate=self.params["comp_to_calculate"],
             profile_type=self.params_model["profile_type"],
             indices_filter=self.indices_filter,
+            tile_type=self.params["tile_type"],
+            wcs=self.wcs
             )
 
             q_opt[i,:] = q_extracted
@@ -802,11 +870,19 @@ class filter_maps:
         catalogue_at_true_values.catalogue["q_opt"] = q_opt[:,0]
         catalogue_at_true_values.catalogue["y0"] = y0_est[:,0]
         catalogue_at_true_values.catalogue["theta_500"] = true_catalogue.catalogue["theta_500"]
-        catalogue_at_true_values.catalogue["theta_x"] = true_catalogue.catalogue["theta_x"]
-        catalogue_at_true_values.catalogue["theta_y"] = true_catalogue.catalogue["theta_y"]
-        catalogue_at_true_values.catalogue["pixel_ids"] =  np.ones(n_clus)*self.field_id
+        catalogue_at_true_values.catalogue["pixel_ids"] =  [self.field_id]*n_clus
         catalogue_at_true_values.catalogue["m_500"] = true_catalogue.catalogue["m_500"]
         catalogue_at_true_values.catalogue["z"] = true_catalogue.catalogue["z"]
+
+        if self.params["tile_type"] == "healpix":
+
+            catalogue_at_true_values.catalogue["theta_x"] = true_catalogue.catalogue["theta_x"]
+            catalogue_at_true_values.catalogue["theta_y"] = true_catalogue.catalogue["theta_y"]
+
+        elif self.params["tile_type"] == "car":
+
+            catalogue_at_true_values.catalogue["dec"] = true_catalogue.catalogue["dec"]
+            catalogue_at_true_values.catalogue["ra"] = true_catalogue.catalogue["ra"]
 
         #Extraction of other components
 
@@ -826,8 +902,9 @@ class filter_maps:
 #Apply MMF for input catalogue
 
 def extract_at_input_value(t_true,inv_cov,pix,beam,M_500,z,cosmology,norm_type,
-theta_x,theta_y,lrange,apod_type=None,mmf_type=None,cmmf_prec=None,cmmf_type=None,
-freqs=None,exp=None,comp_to_calculate=None,profile_type=None,indices_filter=None):
+theta_0,theta_1,lrange,apod_type=None,mmf_type=None,cmmf_prec=None,cmmf_type=None,
+freqs=None,exp=None,comp_to_calculate=None,profile_type=None,indices_filter=None,
+tile_type="healpix",wcs=None):
 
     nfw = model.gnfw(M_500,z,cosmology,type=profile_type)
 
@@ -840,7 +917,10 @@ freqs=None,exp=None,comp_to_calculate=None,profile_type=None,indices_filter=None
         exp,
         beam=beam,
         get_nc=False,
-        sed=False)
+        sed=False,
+        tile_type=tile_type,
+        wcs=wcs
+        )
         t_tem_norm = None
 
     elif mmf_type == "spectrally_constrained" and cmmf_type == "general":
@@ -849,7 +929,10 @@ freqs=None,exp=None,comp_to_calculate=None,profile_type=None,indices_filter=None
         exp,
         beam=beam,
         get_nc=True,
-        sed=False)
+        sed=False,
+        tile_type=tile_type,
+        wcs=wcs
+        )
 
         t_tem_norm = t_tem_norm/nfw.get_y_norm(norm_type)
         t_tem_norm = maps.filter_tmap(t_tem_norm,pix,lrange)
@@ -867,9 +950,21 @@ freqs=None,exp=None,comp_to_calculate=None,profile_type=None,indices_filter=None
 
             q_map = q_map_tem
 
-        j_clus = int(np.floor(theta_x/pix.dx))
-        i_clus = int(pix.ny-np.ceil(theta_y/pix.dy))
+        if tile_type == "healpix":
 
+            j_clus = int(np.floor(theta_0/pix.dx))
+            i_clus = int(pix.ny-np.ceil(theta_1/pix.dy))
+
+        elif tile_type == "car":
+
+            ra = theta_0
+            dec = theta_1
+
+            from pixell import enmap
+
+            pix_coords = enmap.sky2pix((pix.nx,pix.ny),wcs,(dec,ra))
+            i_clus,j_clus = np.round(pix_coords).astype(int)
+                    
         q_opt[k] = q_map_tem[i_clus,j_clus]
         y0_est[k] = y_map[i_clus,j_clus]
 
@@ -896,7 +991,7 @@ def make_detections(q_tensor,q_th,pix,detection_method="maxima"):
 
     if coords.shape[0] == 0:
 
-        ret = ([],[],[],[])
+        ret = ([],[],[])
 
     else:
 

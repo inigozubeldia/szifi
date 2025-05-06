@@ -322,6 +322,10 @@ mode="close+highest_q",sort=True,unique=False):
 
             dist = sphere.get_angdist(catalogue_1.catalogue["lon"][i],catalogue_2.catalogue["lon"],catalogue_1.catalogue["lat"][i],catalogue_2.catalogue["lat"])
 
+        elif lonlat == "equatorial":
+
+            dist = sphere.get_angdist(catalogue_1.catalogue["ra"][i],catalogue_2.catalogue["ra"],catalogue_1.catalogue["dec"][i],catalogue_2.catalogue["dec"])
+
         if unique == False:
 
             indices_closest = np.where(dist < id_radius_arcmin/180./60.*np.pi)[0]
@@ -391,9 +395,21 @@ mode="close+highest_q",sort=True,unique=False):
     return (catalogue_1_new,catalogue_2_new)
 
 
-def apply_mask_select(cat,mask_select,pix):
+def apply_mask_select(cat,mask_select,pix,tile_type="healpix",wcs=None):
 
-    i,j = maps.get_ij_from_theta(cat.catalogue["theta_x"],cat.catalogue["theta_y"],pix)
+    if tile_type == "healpix":
+
+        i,j = maps.get_ij_from_theta(cat.catalogue["theta_x"],cat.catalogue["theta_y"],pix)
+
+    elif tile_type == "car":
+
+        from pixell import enmap
+
+        coords = np.array([cat.catalogue["dec"],cat.catalogue["ra"]])
+        ij = enmap.sky2pix(mask_select.shape,wcs,coords)
+        i = ij[0].astype("int")
+        j = ij[1].astype("int")
+      
     mask_values = mask_select[i,j]
     indices = np.where(mask_values != 0.)[0]
 
