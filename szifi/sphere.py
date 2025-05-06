@@ -259,3 +259,11 @@ def get_radec_for_tile(yaml_file_path, target_tile_name):
             return entry.get('RADecSection')
     
     return None 
+
+def get_all_tile_names(yaml_file_path):
+
+    with open(yaml_file_path, 'r') as f:
+        data = yaml.safe_load(f)
+    
+    return [entry.get('tileName') for entry in data if 'tileName' in entry]
+
