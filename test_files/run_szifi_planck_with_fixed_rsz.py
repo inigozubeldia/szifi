@@ -11,11 +11,16 @@ params_szifi = szifi.params_szifi_default
 params_data = szifi.params_data_default
 params_model = szifi.params_model_default
 
-params_szifi = szifi.params_szifi_default
+params_szifi["path"] = "/home/iz221/szifi/"
+params_szifi["path_data"] = "/rds-d4/user/iz221/hpc-work/maps/"
+params_szifi["survey_file"] = "/home/iz221/szifi/surveys/data_planck.py"
 
 params_szifi["mmf_type"] = "standard"
 params_szifi["integrate_bandpass"] = True
+params_szifi["deproject_cib"] = ["cib"]
+
 params_szifi["freqs"] = [0,1,2,3,4,5]
+
 params_szifi["rSZ"] = True
 
 #Input data
@@ -42,7 +47,6 @@ catalogue_obs_it = detection_processor.results.catalogues["catalogue_find_1"]
 
 #Define fixed catalogue
 
-data = szifi.input_data(params_szifi=params_szifi,params_data=params_data)
 data.data["catalogue_input"] = {}
 
 #Specify cluster temperatures in keV (SED updated in the fixed mode, NOT in the cluster-finding step)

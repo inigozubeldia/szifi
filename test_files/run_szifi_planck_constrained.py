@@ -13,21 +13,26 @@ params_data = szifi.params_data_default
 params_model = szifi.params_model_default
 
 params_szifi["mmf_type"] = "spectrally_constrained"
-params_szifi["cmmf_type"] = "general" #or "one_dep" if only one SED is deprojected (faster)
+params_szifi["cmmf_type"] = "general"
+#params_szifi["cmmf_type"] = "one_dep"
 params_szifi["integrate_bandpass"] = True
+
+params_szifi["path"] = "/home/iz221/szifi/"
+params_szifi["path_data"] = "/rds-d4/user/iz221/hpc-work/maps/"
+params_szifi["survey_file"] = "/home/iz221/szifi/surveys/data_planck.py"
 
 #Input data
 
-params_data["field_ids"] = [0,1]
+params_data["field_ids"] = [0]
 data = szifi.input_data(params_szifi=params_szifi,params_data=params_data)
 
 #Deprojection data
 
 freqs = params_szifi["freqs"]
 
-params_model["alpha_cib"] = 0.36
-params_model["T0_cib"] = 20.7
-params_model["beta_cib"] = 1.6
+params_model["alpha_cib"] = 0.36 #also from Planck paper
+params_model["T0_cib"] = 20.7 # 24.4, this from Planck paper (https://arxiv.org/pdf/1309.0382.pdf), instead of 1.6
+params_model["beta_cib"] = 1.6 # 1.75, this same
 params_model["z_eff_cib"] = 0.2
 
 #Compute CIB SED and its moments
@@ -58,7 +63,7 @@ params_szifi["a_matrix"] = a_matrix
 
 #Alternatively, the CIB and its moments can be deprojected without the need to explicitly set the mixing matrix "a_matrix":
 
-#params_szifi["deproject_cib"] = ["cib","betaT"] #Deprojecting the CIB SED and its first-order moment with respect to "betaT"
+#params_szifi["deproject_cib"] = ["cib"] #Deprojecting the CIB SED and its first-order moment with respect to "betaT"
 
 #Find clusters
 
@@ -83,18 +88,12 @@ q_th_final = 5.
 catalogue_obs_noit = szifi.get_catalogue_q_th(catalogue_obs_noit,q_th_final)
 catalogue_obs_it = szifi.get_catalogue_q_th(catalogue_obs_it,q_th_final)
 
-print("noit catalogue",catalogue_obs_noit.catalogue["q_opt"])
-print("it catalogue",catalogue_obs_it.catalogue["q_opt"])
-
 #Merge catalogues of all fields
 
 radius_arcmin = 10. #merging radius in arcmin
 
 catalogue_obs_noit = szifi.merge_detections(catalogue_obs_noit,radius_arcmin=radius_arcmin,return_merge_flag=True,mode="fof")
 catalogue_obs_it = szifi.merge_detections(catalogue_obs_it,radius_arcmin=radius_arcmin,return_merge_flag=True,mode="fof")
-
-print("noit catalogue merged",catalogue_obs_noit.catalogue["q_opt"])
-print("it catalogue merged",catalogue_obs_it.catalogue["q_opt"])
 
 #Some plots
 
@@ -104,4 +103,12 @@ pl.legend()
 pl.xlabel("Detection SNR")
 pl.ylabel("Number of detections")
 pl.savefig("detection_histogram.pdf")
+pl.show()
+
+pl.scatter(catalogue_obs_noit.catalogue["q_opt"],catalogue_obs_it.catalogue["q_opt"])
+x = np.linspace(np.min(catalogue_obs_noit.catalogue["q_opt"]),np.max(catalogue_obs_noit.catalogue["q_opt"]),100)
+pl.plot(x,x,color="k")
+pl.xlabel("Non-iterative SNR")
+pl.ylabel("Iterative SNR")
+pl.savefig("detection_itnoit_comparison.pdf")
 pl.show()
