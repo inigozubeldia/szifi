@@ -2,7 +2,7 @@
 
 SZiFi (pronounced "sci-fi") is a Python implementation of the iterative multi-frequency matched filter (iMMF) galaxy cluster finding method, which is described in detail in [Zubeldia et al. (2023a)](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.4766Z/abstract). It can be used to detect galaxy clusters with mm intensity maps through their thermal Sunyaev-Zeldovich (tSZ) signal. As novel features, it allows for foreground deprojection via spectrally constrained MMFs, or sciMMFs (see [Zubeldia et al., 2023b](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.5123Z/abstract)) and it can also incorporate the relativistic corrections to the tSZ SED. It can also be used for point source detection. If you use SZiFi in any of your projects, please cite both papers.
 
-SZiFi works with sky cut-out in which the flat-sky approximation is assumed to hold. It supports two tessellation schemes: one based on HEALPix pixels, suited for spherical maps in the HEALPix pixellation, and another one based on RA and dec limits, suited for maps in the CAR projection.
+SZiFi is applied on sky cut-outs in which the flat-sky approximation is assumed to hold. It supports two sky tessellation schemes: one based on HEALPix pixels, suited for spherical maps in the HEALPix pixellation, and another one based on RA and dec limits, suited for maps in the CAR projection.
 
 SZiFi has been used to produce a new set of [*Planck*](https://pla.esac.esa.int/#home) cluster catalogues (see [Zubeldia et al. 2024](https://ui.adsabs.harvard.edu/abs/2025MNRAS.tmp..470Z/abstract)). Its peformance has been tested extensively on synthetic *Planck* data and is currently being tested in the context of the [Simons Observatory](https://simonsobservatory.org) (SO).
 
