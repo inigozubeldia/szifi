@@ -51,23 +51,25 @@ class input_data_survey:
             input_maps = np.stack(input_maps_list)
             wcs = input_maps_list[0].wcs 
             tile_map = enmap.enmap(input_maps,wcs)
-            tile_map = enmap.enmap(np.moveaxis(tile_map, 0, -1),tile_map.wcs)
 
             #Pixelation
 
-            dx_arcmin = tile_map.wcs.wcs.cdelt[0]*60
-            dy_arcmin = tile_map.wcs.wcs.cdelt[1]*60
-            dx = dx_arcmin/60./180.*np.pi
-            dy = dy_arcmin/60./180.*np.pi
-            nx = tile_map.shape[0]
-            ny = tile_map.shape[1]
+            print(tile_map.shape)
+            nx = tile_map.shape[1]
+            ny = tile_map.shape[2]
+            dx,dy = tile_map.extent()
+            dx = dx/nx
+            dy = dy/ny
+
             pix = maps.pixel(nx,dx,ny=ny,dy=dy)
 
             self.data["nx"][field_id] = nx
             self.data["ny"][field_id] = ny
-            self.data["dx_arcmin"][field_id] = dx_arcmin
-            self.data["dy_arcmin"][field_id] = dy_arcmin
+            self.data["dx_arcmin"][field_id] = dx*180.*60./np.pi
+            self.data["dy_arcmin"][field_id] = dy*180.*60./np.pi
             self.data["pix"][field_id] = pix
+
+            tile_map = enmap.enmap(np.moveaxis(tile_map, 0, -1),tile_map.wcs)
 
             self.data["t_obs"][field_id] = tile_map
             self.data["t_noi"][field_id] = tile_map
