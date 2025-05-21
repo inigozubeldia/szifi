@@ -43,15 +43,9 @@ class gnfw:
             self.P_500 = 1.65e-3*self.Ez**(8./3.)*(self.M/3e14*self.h70)**(2./3.)*self.h70**2  #in units of keV cm-3
             self.Y_500 = self.P_500*self.R_Delta**3*4.*np.pi/3.*self.P2Y #characteristic Y, in units of Mpc^2
 
-        #elif self.type == "battaglia":
-
-        #    self.rho_c = cosmology.critical_density(self.z_halo).value*1000.*const.mpc**3/const.solar
-    #          self.P_Delta = self.G*self.M*self.Delta*self.rho_c*self.cosmology.Omb/self.cosmology.Om0/(2.*self.R_Delta)
-
 
     def get_p_cal_map(self,pix,c_500,theta_misc=[0.,0.],tile_type="healpix",wcs=None):
 
-        #theta_max = np.sqrt((nx*dx)**2+(ny*dy)**2)*0.5*1.1
         theta_max = self.theta_Delta*self.my_params_sz.R_truncation
         theta_vec = np.linspace(0.,theta_max,1000)
         p_cal_vec = np.zeros(len(theta_vec))
@@ -69,7 +63,7 @@ class gnfw:
 
         elif tile_type == "car":
 
-            from pixell import enmap, utils, enplot
+            from pixell import enmap, utils
 
             position_map = enmap.empty((pix.nx,pix.ny),wcs)
             pos = position_map.posmap()  # shape: (2, Ny, Nx)

@@ -914,13 +914,9 @@ class detection_processor:
 
                 for cat_key in cat_keys:
 
-                #    print(field_id,cat_key)
-
                     results_dict[field_id].catalogues[cat_key[0:-1] + "1"] = results_dict[field_id].catalogues[cat_key]
-                    del results_dict[field_id].catalogues[cat_key]
-            self.results.append(results_dict[field_id])
 
-        #    print(results_dict[field_id].catalogues)
+            self.results.append(results_dict[field_id])
 
             i = i + 1
 

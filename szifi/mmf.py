@@ -204,50 +204,48 @@ class cluster_finder:
 
                 #Estimate channel cross-spectra
 
-                if self.params_szifi["estimate_spec"] == "estimate":
+                lmax1d = self.params_szifi["powspec_lmax1d"]
+                new_shape = self.params_szifi["powspec_new_shape"]
 
-                    lmax1d = self.params_szifi["powspec_lmax1d"]
-                    new_shape = self.params_szifi["powspec_new_shape"]
+                if lmax1d is not None:
 
-                    if lmax1d is not None:
+                    if new_shape is not None:
 
-                        if new_shape is not None:
+                        raise ValueError("Only one of powspec_lmax1d or powspec_new_shape can be specified")
 
-                            raise ValueError("Only one of powspec_lmax1d or powspec_new_shape can be specified")
+                    new_shape = maps.get_newshape_lmax1d((self.pix.nx,self.pix.ny),lmax1d,self.pix.dx)
 
-                        new_shape = maps.get_newshape_lmax1d((self.pix.nx,self.pix.ny),lmax1d,self.pix.dx)
+                bin_fac = self.params_szifi["powspec_bin_fac"]
+                self.ps = spec.power_spectrum(self.pix,
+                mask=self.mask_ps,
+                cm_compute=self.params_szifi["coupling_matrix_needed"],
+                cm_compute_scratch=self.params_szifi["compute_coupling_matrix"],
+                cm_save=self.params_szifi["save_coupling_matrix"],
+                cm_name=self.coupling_matrix_name,
+                bin_fac=bin_fac,
+                new_shape=new_shape)
 
-                    bin_fac = self.params_szifi["powspec_bin_fac"]
-                    self.ps = spec.power_spectrum(self.pix,
-                    mask=self.mask_ps,
-                    cm_compute=self.params_szifi["coupling_matrix_needed"],
-                    cm_compute_scratch=self.params_szifi["compute_coupling_matrix"],
-                    cm_save=self.params_szifi["save_coupling_matrix"],
-                    cm_name=self.coupling_matrix_name,
-                    bin_fac=bin_fac,
-                    new_shape=new_shape)
+                self.cspec = spec.cross_spec(np.arange(len(self.params_szifi["freqs"])))
 
-                    self.cspec = spec.cross_spec(np.arange(len(self.params_szifi["freqs"])))
+                self.cspec.get_cross_spec(self.pix,
+                t_map=self.t_noi,
+                ps=self.ps,
+                decouple_type=self.params_szifi["decouple_type"],
+                inpaint_flag=self.params_szifi["inpaint"],
+                mask_point=self.mask_point,
+                lsep=self.params_szifi["lsep"],
+                bin_fac=bin_fac,
+                new_shape=new_shape)
 
-                    self.cspec.get_cross_spec(self.pix,
-                    t_map=self.t_noi,
-                    ps=self.ps,
-                    decouple_type=self.params_szifi["decouple_type"],
-                    inpaint_flag=self.params_szifi["inpaint"],
-                    mask_point=self.mask_point,
-                    lsep=self.params_szifi["lsep"],
-                    bin_fac=bin_fac,
-                    new_shape=new_shape)
-
-                    self.inv_cov = self.cspec.get_inv_cov(self.pix,interp_type=self.params_szifi["interp_type"],bin_fac=bin_fac,new_shape=new_shape)
+                self.inv_cov = self.cspec.get_inv_cov(self.pix,
+                                                      t_map=self.t_noi,
+                                                      interp_type=self.params_szifi["interp_type"],
+                                                      bin_fac=bin_fac,
+                                                      new_shape=new_shape,
+                                                      mask=self.mask_ps,
+                                                      cov_type=self.params_szifi["cov_type"])
 
                 
-                #If power spectrum is theoretically predicted - testing not up to date, do not use
-
-                elif self.params_szifi["estimate_spec"] == "theory":
-
-                    self.inv_cov = spec.cross_spec(self.params_szifi["freqs"]).get_inv_cov(self.pix,theory=True,cmb=True)
-
                 del self.mask_point
 
                 #Compute weights for constrained MMF
@@ -408,10 +406,6 @@ class cluster_finder:
 
                     break
 
-                if  self.params_szifi["estimate_spec"] == False:
-
-                    break
-
                 if i == self.params_szifi["max_it"]:
 
                     break
@@ -466,6 +460,7 @@ class cluster_finder:
                 self.results.get_lonlat(field_id,self.pix,nside=self.data_file["nside_tile"])
 
             self.results_dict[field_id] = self.results
+
 
 
 #Get mask at the location of detected clusters (for iterative noise covariance estimation)
@@ -651,6 +646,27 @@ class filter_maps:
             mmf_type=self.params["mmf_type"],
             cmmf_prec=self.cmmf,
             tem_norm=t_tem_norm)
+
+            import pylab as pl
+
+            pl.figure()
+            pl.imshow(q_map,vmax=4.)
+            pl.colorbar()
+            pl.savefig("/home/iz221/szifi/test_files/figures/q_map.pdf")
+            pl.show()
+
+            i_min = int(self.pix.nx/2 - self.pix.nx/8.)
+            i_max = int(self.pix.nx/2 + self.pix.nx/8.)
+            j_min = int(self.pix.ny/2 - self.pix.ny/8.)
+            j_max = int(self.pix.ny/2 + self.pix.ny/8.)
+        
+            print("SNR mean",np.mean(q_map[i_min:i_max,j_min:j_max]))
+            print("SNR std",np.std(q_map[i_min:i_max,j_min:j_max]))
+
+            # pl.figure()
+            # pl.hist(q_map,bins=50)
+            # pl.savefig("/home/iz221/szifi/test_files/figures/q_hist.pdf")
+            # pl.show()
 
             del tem, t_tem_norm
 

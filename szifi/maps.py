@@ -92,6 +92,8 @@ class rmap:
     def get_ifft(self):
 
         return get_ifft(self.map_value,self.pix)
+    
+    #This works for CAR maps too
 
     def get_lxly(self):
 

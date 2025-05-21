@@ -10,7 +10,6 @@ params_szifi_default = {
 "iterative": True, #if True, iterative noise covariance estimation
 "max_it":1,
 
-"estimate_spec": "estimate", #if "estimate", covariance is estimated from data; if "theory", it is computed theoretically
 "decouple_type": "master", # "master", "none", or "fsky"
 "save_coupling_matrix": False, #if True, the power spectra coupling matrix is saved (old save_mask)
 "compute_coupling_matrix": False, #if True, the coupling matrix is computed from scratch, otherwise it is loaded
@@ -18,6 +17,7 @@ params_szifi_default = {
 "powspec_lmax1d": None, # maximum lmax for power spectra. Maps and masks will be degraded to this lmax before computing coupling matrix and power spectra
 "powspec_new_shape": None, # New shape for calculating powspec on lower resolution map. One of this and powspec_lmax1d must be 'None'
 "powspec_bin_fac": 4, # Factor by which to bin Cls. There will be nx/bin_fac bins of width bin_fac * (pi/(nx*dx)) for a field of nx^2 pixels
+"cov_type": "isotropic", # "isotropic", "anisotropic_boxcar", or "anisotropic_gaussian"
 
 "lrange": [100,2500], #ell range to be used in the analysis, if None all the modes are used
 "freqs": [0,1,2,3,4,5], #Frequency channels to be used in the analysis
@@ -32,7 +32,6 @@ params_szifi_default = {
 "get_q_true":False, #has superseeded "extract_at_truth"
 "theta_500_input": None,
 "norm_type": "centre",
-"n_clusters_true": 1000, #maximum number of true clusters for which to extract signal
 "min_ftile":0.3, #minimum unmasked fraction of tile for it to be considered for cluster finding
 "tilemask_mode": "field", # "catalogue", "catalogue_buffer", or "field"
 "tilemask_buffer_arcmin": 15,
