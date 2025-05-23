@@ -116,7 +116,7 @@ class cluster_finder:
 
             if self.params_szifi["inpaint"] == True:
 
-                self.t_obs = maps.diffusive_inpaint_freq(self.t_obs,self.mask_point,self.params_szifi["n_inpaint"])
+                self.t_obs = maps.inpaint_freq(self.t_obs,self.mask_point,n_inpaint=self.params_szifi["n_inpaint"],pix=self.pix, noise=self.exp.noise_levels)
 
             mask_point_0 = self.mask_point
 
@@ -176,10 +176,9 @@ class cluster_finder:
                 self.mask_point = mask_point_0*mask_cluster
 
                 #Inpaint noise map (as it may change with iteration)
-
                 if self.params_szifi["inpaint"] == True:
 
-                    self.t_noi = maps.diffusive_inpaint_freq(t_noi_original,self.mask_point,self.params_szifi["n_inpaint"])
+                    self.t_noi = maps.inpaint_freq(t_noi_original,self.mask_point,n_inpaint=self.params_szifi["n_inpaint"], pix=self.pix, noise=self.exp.noise_levels)
 
                 self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"],indices_filter=self.indices_filter)
 
@@ -412,7 +411,8 @@ class cluster_finder:
                 mask_cluster = get_cluster_mask(self.pix,
                 self.results_for_masking,
                 self.params_szifi["q_th_noise"],
-                self.params_szifi["mask_radius"])
+                self.params_szifi["mask_radius"],
+                self.params_szifi["max_radius_arcmin"])
 
                 clusters_masked_old = clusters_masked_new
 
@@ -436,7 +436,7 @@ class cluster_finder:
 
 #Get mask at the location of detected clusters (for iterative noise covariance estimation)
 
-def get_cluster_mask(pix,catalogue,q_th_noise,mask_radius):
+def get_cluster_mask(pix,catalogue,q_th_noise,mask_radius,max_radius_arcmin=1e9):
 
     mask_cluster = np.ones((pix.nx,pix.ny))
 
@@ -448,7 +448,7 @@ def get_cluster_mask(pix,catalogue,q_th_noise,mask_radius):
             source_coords = np.zeros((1,2))
             source_coords[0,0] = x_est
             source_coords[0,1] = y_est
-            mask_cluster *= maps.ps_mask(pix,1,catalogue.catalogue["theta_500"][j]*mask_radius).get_mask_map(source_coords=source_coords)
+            mask_cluster *= maps.ps_mask(pix,1,min(catalogue.catalogue["theta_500"][j]*mask_radius, max_radius_arcmin)).get_mask_map(source_coords=source_coords)
 
     return mask_cluster
 
