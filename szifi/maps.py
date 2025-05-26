@@ -8,6 +8,10 @@ import healpy as hp
 import scipy
 import scipy.stats as st
 
+from orphics import maps as omaps
+from pixell import enmap, utils
+import szifi.car as car
+
 #Functions for handling maps
 
 class pixel:
@@ -1214,15 +1218,32 @@ def get_map_convolved_fft(map_fft_original,pix,freqs,beam_type,mask,lrange,exp):
 
     return a_map_fft
 
-def diffusive_inpaint_freq(tmap,mask,n_inpaint):
+def inpaint_freq(tmap,mask,n_inpaint=None, pix=None, noise=None):
 
     ret = np.zeros(tmap.shape, dtype=tmap.dtype)
-
+    noise = [None]*tmap.shape[2] if noise is None else noise
     for i in range(0,tmap.shape[2]):
 
-        ret[:,:,i] = diffusive_inpaint(tmap[:,:,i],mask,n_inpaint)
+        ret[:,:,i] = inpaint(tmap[:,:,i],mask,n_inpaint, pix, noise[i])
+
+    if isinstance(tmap, enmap.ndmap):
+        ret = enmap.ndmap(ret, wcs=tmap.wcs)
 
     return ret
+
+def inpaint(image, mask, n_inpaint=None, pix=None, noise=None):
+    if n_inpaint is not None:
+        inpainted_image = diffusive_inpaint(image, mask, n_inpaint)  # Legacy inpaint
+    else:
+        if not isinstance(image, enmap.ndmap):  # We need an ndmap
+            shape = (pix.ny, pix.nx)
+            wcs = car.get_target_wcs(np.rad2deg(pix.dx), shape, (0,0))
+            image = enmap.ndmap(image, wcs=wcs)
+            mask = enmap.ndmap(mask, wcs=wcs)
+
+        ivar = omaps.ivar(image.shape, image.wcs, noise_muK_arcmin=noise) if noise is not None else None
+        inpainted_image = omaps.gapfill_edge_conv_flat(image, ~mask.astype(bool), ivar=ivar, rmin=0.5*utils.arcmin, alpha=-4)
+    return inpainted_image
 
 @jit(nopython=False)
 def diffusive_inpaint(image,mask,n_inpaint):
