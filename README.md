@@ -1,8 +1,10 @@
 ## SZiFi, the Sunyaev-Zeldovich iterative Finder
 
-SZiFi (pronounced "sci-fi") is a Python implementation of the iterative multi-frequency matched filter (iMMF) galaxy cluster finding method, which is described in detail in [Zubeldia et al. (2023a)](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.4766Z/abstract). It can be used to detect galaxy clusters with mm intensity maps through their thermal Sunyaev-Zeldovich (tSZ) signal. As a novel feature, it allows for foreground deprojection via a spectrally constrained MMF, or sciMMF (see [Zubeldia et al., 2023b](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.5123Z/abstract)). It can also be used for point source detection. If you use SZiFi in any of your projects, please cite both papers.
+SZiFi (pronounced "sci-fi") is a Python implementation of the iterative multi-frequency matched filter (iMMF) galaxy cluster finding method, which is described in detail in [Zubeldia et al. (2023a)](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.4766Z/abstract). It can be used to detect galaxy clusters with mm intensity maps through their thermal Sunyaev-Zeldovich (tSZ) signal. As novel features, it allows for foreground deprojection via spectrally constrained MMFs, or sciMMFs (see [Zubeldia et al., 2023b](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.5123Z/abstract)) and it can also incorporate the relativistic corrections to the tSZ SED. It can also be used for point source detection. If you use SZiFi in any of your projects, please cite both papers.
 
-SZiFi has been used to produce a new set of [*Planck*](https://pla.esac.esa.int/#home) cluster catalogues (see [Zubeldia et al. 2024](https://ui.adsabs.harvard.edu/abs/2025MNRAS.tmp..470Z/abstract)). Its peformance has been tested extensively on synthetic *Planck* data and is currently being tested in the context of the [Simons Observatory](https://simonsobservatory.org).
+SZiFi is applied on sky cut-outs in which the flat-sky approximation is assumed to hold. It supports two sky tessellation schemes: one based on HEALPix pixels, suited for spherical maps in the HEALPix pixellation, and another one based on RA and dec limits, suited for maps in the CAR projection.
+
+SZiFi has been used to produce a new set of [*Planck*](https://pla.esac.esa.int/#home) cluster catalogues (see [Zubeldia et al. 2024](https://ui.adsabs.harvard.edu/abs/2025MNRAS.tmp..470Z/abstract)). Its peformance has been tested extensively on synthetic *Planck* data and is currently being tested in the context of the [Simons Observatory](https://simonsobservatory.org) (SO).
 
 If you have any questions about how to use the code, please write to me at inigo.zubeldia (at) ast cam ac uk.
 
@@ -16,11 +18,18 @@ You'll then be able to import SZiFi in Python with
 ```
 import szifi
 ```
-Dependencies: [astropy](https://www.astropy.org), [healpy](https://healpy.readthedocs.io/en/latest/), [pymaster](https://namaster.readthedocs.io), [scikit-learn](https://scikit-learn.org/stable/) (optional), [SZpack](https://github.com/CMBSPEC/SZpack) (optional).
+Dependencies: [astropy](https://www.astropy.org), [healpy](https://healpy.readthedocs.io/en/latest/), [pymaster](https://namaster.readthedocs.io), [scikit-learn](https://scikit-learn.org/stable/) (optional), [SZpack](https://github.com/CMBSPEC/SZpack) (optional), [pixell](https://github.com/simonsobs/pixell/tree/master) (optional).
 
 ### Sample scripts
 
-Several sample scripts illustrating how the code works are included in szifi/test_files. In order to be able to run them, please download the data [here](https://drive.google.com/drive/folders/1_O48SQ5aPTaW32MAzBF6SEX7HyPvRoXM?usp=sharing) and put it in a new directory called szifi/data.
+Several sample scripts illustrating how the code works on real Planck data and simulated SO-like data are included in `szifi/test_files`. In order to be able to run them, please download the data [here](https://drive.google.com/drive/folders/1_O48SQ5aPTaW32MAzBF6SEX7HyPvRoXM?usp=sharing) and put it in a new directory called `szifi/data`.
+
+### 06/05/2025: Code upgrade
+
+SZiFi has been significantly upgraded on 06/05/2025:
+
+- It can now be applied to maps in the CAR projection through a new interface with the [pixell](https://github.com/simonsobs/pixell/tree/master) library, with tiles defined as RA and dec limits. See the example on test_files/run_szifi_so_car.py.
+- The way the data is interfaced with the code has been simplified. Now, each dataset is defined through a survey data file. The two survey data files needed to run the test samples on `szifi/test_files` are provided in `szifi/surveys`.
 
 ### 30/08/2024: Code upgrade
 

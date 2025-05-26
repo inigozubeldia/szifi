@@ -11,7 +11,16 @@ params_szifi = szifi.params_szifi_default
 params_data = szifi.params_data_default
 params_model = szifi.params_model_default
 
-params_szifi = szifi.params_szifi_default
+params_szifi["path"] = "/home/iz221/szifi/"
+params_szifi["path_data"] = "/rds-d4/user/iz221/hpc-work/maps/"
+params_szifi["survey_file"] = "/home/iz221/szifi/surveys/data_planck.py"
+
+
+params_szifi["mmf_type"] = "spectrally_constrained"
+params_szifi["cmmf_type"] = "general"
+params_szifi["cmmf_type"] = "one_dep" 
+params_szifi["deproject_cib"] = ["cib"]
+
 
 #Input data
 
@@ -36,11 +45,9 @@ catalogue_obs_it = detection_processor.results.catalogues["catalogue_find_1"]
 
 #Define fixed catalogue
 
-data = szifi.input_data(params_szifi=params_szifi,params_data=params_data)
-
 data.data["catalogue_input"] = {}
 data.data["catalogue_input"][0] = catalogue_obs_it
- 
+
 #Run SZiFi on fixed mode
 
 params_szifi["extraction_mode"] = "fixed"

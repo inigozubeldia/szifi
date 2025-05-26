@@ -3,6 +3,7 @@ import healpy as hp
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from szifi import maps
+import yaml
 
 def get_cutout(hp_map,lonlat,nx,l,coord_type="G"):
 
@@ -246,3 +247,23 @@ def get_tile_fsky(nside_tile,mask):
         print(i,tile_frac)
 
     return skyfracs/n_tile
+
+#For Nemo tessellation
+
+def get_radec_for_tile(yaml_file_path, target_tile_name):
+    with open(yaml_file_path, 'r') as f:
+        data = yaml.safe_load(f)
+    
+    for entry in data:
+        if entry.get('tileName') == target_tile_name:
+            return entry.get('RADecSection')
+    
+    return None 
+
+def get_all_tile_names(yaml_file_path):
+
+    with open(yaml_file_path, 'r') as f:
+        data = yaml.safe_load(f)
+    
+    return [entry.get('tileName') for entry in data if 'tileName' in entry]
+

@@ -15,11 +15,19 @@ params_szifi = szifi.params_szifi_default
 params_data = szifi.params_data_default
 params_model = szifi.params_model_default
 
-params_szifi = szifi.params_szifi_default
+params_szifi["path"] = "/home/iz221/szifi/"
+params_szifi["path_data"] = "/home/iz221/rds/hpc-work/maps/" #change to your path to data
+params_szifi["survey_file"] = "/home/iz221/szifi/surveys/data_planck.py" #change to your path to the survey data file
+params_szifi["path_template"] = "/home/iz221/rds/hpc-work/maps/tem_szifi/" #change to relevant path if templates are to be saved for speed
+params_szifi["save_and_load_template"] = False
+
+
+# params_szifi["cosmology"] = "cosmocnc"
+# params_szifi["cosmology_tool"] = "classy_sz"
 
 #Input data
 
-params_data["field_ids"] = [0,1]
+params_data["field_ids"] = [0]
 data = szifi.input_data(params_szifi=params_szifi,params_data=params_data)
 
 #Find clusters
@@ -54,7 +62,7 @@ catalogue_obs_it = szifi.merge_detections(catalogue_obs_it,radius_arcmin=radius_
 
 print("Time total",time.time()-t0)
 
-#Plot detections
+#Some plots
 
 pl.hist(catalogue_obs_it.catalogue["q_opt"],color="tab:blue",label="Iterative")
 pl.hist(catalogue_obs_noit.catalogue["q_opt"],color="tab:orange",label="Non iterative")
@@ -62,4 +70,12 @@ pl.legend()
 pl.xlabel("Detection SNR")
 pl.ylabel("Number of detections")
 pl.savefig("detection_histogram.pdf")
+pl.show()
+
+pl.scatter(catalogue_obs_noit.catalogue["q_opt"],catalogue_obs_it.catalogue["q_opt"])
+x = np.linspace(np.min(catalogue_obs_noit.catalogue["q_opt"]),np.max(catalogue_obs_noit.catalogue["q_opt"]),100)
+pl.plot(x,x,color="k")
+pl.xlabel("Non-iterative SNR")
+pl.ylabel("Iterative SNR")
+pl.savefig("detection_itnoit_comparison.pdf")
 pl.show()

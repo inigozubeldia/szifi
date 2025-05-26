@@ -2,7 +2,9 @@ import numpy as np
 import os
 from scipy import interpolate
 import pymaster as nmt
-from szifi import maps, sed
+from szifi import maps
+import scipy.ndimage as ndimage
+
 
 class power_spectrum:
 
@@ -19,23 +21,8 @@ class power_spectrum:
 
         if bins is None:
 
-            if bin_fac == 1.: #actually 1
-
-                ell = np.sort(np.unique(maps.rmap(pix).get_ell().flatten()))
-                l0_bins = ell - 1.
-                lf_bins = ell + 1.
-
-            else:
-
-                l0_bins = np.arange(pix.nx/bin_fac)*bin_fac*np.pi/(pix.nx*pix.dx)
-                lf_bins = (np.arange(pix.nx/bin_fac)+1)*bin_fac*np.pi/(pix.nx*pix.dx)
-
-                #l0_bins = np.linspace(50,10000,256)
-                #lf_bins = np.append(l0_bins[1:],10100)
-
-                #print(len(l0_bins))
-
-
+            l0_bins = np.arange(pix.nx/bin_fac)*bin_fac*np.pi/(pix.nx*pix.dx)
+            lf_bins = (np.arange(pix.nx/bin_fac)+1)*bin_fac*np.pi/(pix.nx*pix.dx)
             bins = nmt.NmtBinFlat(l0_bins,lf_bins)
 
         self.l0_bins = l0_bins
@@ -127,6 +114,10 @@ class power_spectrum:
             elif decouple_type == "fsky":
 
                 fsky = np.sum(self.mask)/(self.pix.nx*self.pix.ny)
+                m1 = np.sum(self.mask**2)/(self.pix.nx*self.pix.ny)
+                m2 = np.sum(self.mask**4)/(self.pix.nx*self.pix.ny)
+                fsky = fsky*m1**2/m2
+
                 ret = (self.ell_eff,cl00_coupled[0]/fsky)
 
         elif implementation == "custom":
@@ -172,17 +163,16 @@ def get_binned_spec(spec_map,ell_map,bins_low,bins_high):
 
 class cross_spec:
 
-    def __init__(self,freqs,spec_matrix=None,ell_vec=None):
+    def __init__(self,freqs):
 
         self.freqs = freqs
         self.n_freqs = len(self.freqs)
         self.spec_tensor = None
         self.ell_vec = None
 
-    def get_cross_spec(self,pix,t_map=None,t_map_2=None,mask=None,bin_fac=4., new_shape=None, ps=None,theory=False,
-    lmax=30000,decouple_type="master",inpaint_flag=False,mask_point=None,
-    lsep=3000,beam="gaussian",implementation="pymaster",exp=None,cib_flag=False,
-    noise_flag=True,cmb_flag=True,tsz_flag=False,tsz_cib_flag=False): #estimates cross spectra. exp only if theory == True
+    def get_cross_spec(self,pix,t_map=None,t_map_2=None,mask=None,bin_fac=4., new_shape=None, ps=None,
+    decouple_type="master",inpaint_flag=False,mask_point=None,
+    lsep=3000,implementation="pymaster"): #estimates cross spectra. exp only if theory == True
 
         pix = maps.degrade_pix(pix, new_shape)
         # Other degrading in power_spectrum rather than here
@@ -199,17 +189,11 @@ class cross_spec:
 
             t_map_2 = t_map
 
-        if theory == True:
+        if ps is None:
 
-            ell = np.arange(2,11000)[100:]
+            ps = power_spectrum(pix, mask=mask, cm_compute=False, bin_fac=bin_fac, new_shape=new_shape)
 
-        elif theory == False:
-
-            if ps is None:
-
-                ps = power_spectrum(pix, mask=mask, cm_compute=False, bin_fac=bin_fac, new_shape=new_shape)
-
-            ell = ps.ell_eff[1:]
+        ell = ps.ell_eff[1:]
 
         n_freq = self.n_freqs
         spec_tensor = np.zeros((len(ell),n_freq,n_freq))
@@ -219,36 +203,26 @@ class cross_spec:
 
             raise ValueError(f"cross_spec new_shape={new_shape} and ps {ps.new_shape} should be equal")
 
-        if theory == False:
+        for i in range(0,n_freq):
 
-            for i in range(0,n_freq):
+            for j in range(0,n_freq):
 
-                for j in range(0,n_freq):
+                if j >= i:
 
-                    if j >= i:
+                    ell,cl = ps.get_power_spectrum(t_map[:,:,i],
+                    map2=t_map_2[:,:,j],decouple_type=decouple_type,
+                    implementation=implementation)
+                    if inpaint_flag == True:
 
-                        ell,cl = ps.get_power_spectrum(t_map[:,:,i],
-                        map2=t_map_2[:,:,j],decouple_type=decouple_type,
-                        implementation=implementation)
-                        if inpaint_flag == True:
+                        ell,cl = correct_for_inpainting((ell,cl),mask_point,lsep=lsep)
 
-                            ell,cl = correct_for_inpainting((ell,cl),mask_point,lsep=lsep)
+                    ell = ell[1:]
+                    cl = cl[1:]
+                    spec_tensor[:,i,j] = cl
 
-                        ell = ell[1:]
-                        cl = cl[1:]
-                        spec_tensor[:,i,j] = cl
+                else:
 
-                    else:
-
-                        spec_tensor[:,i,j] = spec_tensor[:,j,i]
-
-        if theory == True:
-
-            spec_tensor = cross_spec_theory(ell,exp,freqs=self.freqs,cmb_flag=cmb_flag,
-            cib_flag=cib_flag,tsz_flag=tsz_flag,noise_flag=False,tsz_cib_flag=tsz_cib_flag).cross_spec_tensor
-            spec_tensor = spec_tensor*get_beam_tensor(ell,exp,self.freqs,beam_type=beam)
-            spec_tensor = spec_tensor + cross_spec_noise(ell,exp,freqs=self.freqs).cross_spec_tensor
-
+                    spec_tensor[:,i,j] = spec_tensor[:,j,i]
 
         self.spec_tensor = spec_tensor
         self.ell_vec = ell
@@ -256,61 +230,100 @@ class cross_spec:
         return ell,spec_tensor # len(ell) x n_freq x n_freq tensor
 
 
-    def get_cov(self,pix,t_map=None,mask=None,bin_fac=4,new_shape=None,ps=None,theory=False,cmb_flag=True,
-    lmax=30000,decouple_type="master",interp_type="nearest",beam="gaussian",exp=None,
-    cib_flag=False,tsz_flag=False,noise_flag=True,tsz_cib_flag=False):
+    def get_cov(self,pix,t_map=None,mask=None,bin_fac=4,new_shape=None,ps=None,
+    decouple_type="master",interp_type="nearest",cov_type="isotropic"):
+        
+        if cov_type == "isotropic":
 
-        if self.spec_tensor is None:
+            if self.spec_tensor is None:
 
-            ell_vec,spec_tensor = self.get_cross_spec(pix,t_map=t_map,mask=mask,bin_fac=bin_fac, new_shape=new_shape,
-            ps=ps,theory=theory,cmb_flag=cmb_flag,lmax=lmax,decouple_type=decouple_type,beam=beam,exp=exp,
-            cib_flag=cib_flag,noise_flag=noise_flag,tsz_flag=tsz_flag,tsz_cib_flag=tsz_cib_flag)
+                ell_vec,spec_tensor = self.get_cross_spec(pix,t_map=t_map,
+                                                          mask=mask,
+                                                          bin_fac=bin_fac,
+                                                          new_shape=new_shape,
+                                                          ps=ps,
+                                                          decouple_type=decouple_type)
+
+            else:
+
+                ell_vec = self.ell_vec
+                spec_tensor = self.spec_tensor
+
+            pix = maps.degrade_pix(pix, new_shape)
+            ell_map = maps.rmap(pix).get_ell()
+            cov_tensor = interp_cov(ell_map,ell_vec,spec_tensor,interp_type=interp_type)
+
+            # import pylab as pl
+            # pl.figure()
+            # pl.imshow(cov_tensor[:,:,0,0].real)
+            # pl.savefig("/home/iz221/szifi/test_files/figures/cov_isotropic.pdf")
+            # pl.show()
+            # quit()
 
         else:
 
-            ell_vec = self.ell_vec
-            spec_tensor = self.spec_tensor
-
-        pix = maps.degrade_pix(pix, new_shape)
-        ell_map = maps.rmap(pix).get_ell()
-        cov_tensor = interp_cov(ell_map,ell_vec,spec_tensor,interp_type=interp_type)
+            cov_tensor = get_cov_anisotropic(t_map,pix,mask=mask,cov_type=cov_type)
 
         return cov_tensor # nx x ny x n_freq x n_freq covariance tensor
 
-    def get_inv_cov(self,pix,t_map=None,mask=None,bin_fac=4,new_shape=None,ps=None,theory=False,
-    cmb_flag=True,lmax=30000,decouple_type="master",interp_type="nearest",beam="gaussian",exp=None,
-    cib_flag=False,tsz_flag=False,noise_flag=True,tsz_cib_flag=False):
+    def get_inv_cov(self,pix,t_map=None,mask=None,bin_fac=4,new_shape=None,ps=None,
+                    decouple_type="master",interp_type="nearest",cov_type="isotropic"):
 
         return np.linalg.inv(self.get_cov(pix,t_map=t_map,mask=mask,bin_fac=bin_fac,new_shape=new_shape,
-        ps=ps,theory=theory,cmb_flag=cmb_flag,lmax=lmax,decouple_type=decouple_type,interp_type=interp_type,
-        beam=beam,exp=exp,cib_flag=cib_flag,noise_flag=noise_flag,tsz_flag=tsz_flag,tsz_cib_flag=tsz_cib_flag))
+        ps=ps,decouple_type=decouple_type,interp_type=interp_type,
+        cov_type=cov_type))
 
-    def get_inv_cov_anisotropic(self,t_map,pix,mask=None):
+def get_cov_anisotropic(t_map,pix,mask=None,cov_type=None):
 
-        return np.linalg.inv(self.get_cov_anisotropic(t_map,pix,mask=mask))
+    n_freq = t_map.shape[2]
+    cov_tensor = np.zeros((pix.nx,pix.ny,n_freq,n_freq),dtype=complex)
 
-    def get_cov_anisotropic(self,t_map,pix,mask=None):
+    for i in range(0,n_freq):
 
-        if mask == None:
+        for j in range(0,n_freq):
 
-            mask = np.ones((pix.nx,pix.ny))
+            if j >= i:
 
-        n_freq = t_map.shape[2]
-        cov_tensor = np.zeros((pix.nx,pix.ny,n_freq,n_freq),dtype=complex)
+                cov_tensor[:,:,i,j] = get_anisotropic_ps(t_map[:,:,i],t_map[:,:,j],pix,type=cov_type,mask=mask)
 
-        for i in range(0,n_freq):
+            else:
 
-            for j in range(0,n_freq):
+                cov_tensor[:,:,i,j] = cov_tensor[:,:,j,i]
 
-                if j >= i:
+    return cov_tensor
 
-                    cov_tensor[:,:,i,j] = np.conjugate(maps.get_fft(t_map[:,:,i],pix))*maps.get_fft(t_map[:,:,j],pix)
 
-                else:
+def get_anisotropic_ps(map1,map2,pix,type="boxcar",mask=None):
+                
+        power_spectrum = np.real(np.conjugate(maps.get_fft(map1*mask,pix))*maps.get_fft(map2*mask,pix))
 
-                    cov_tensor[:,:,i,j] = cov_tensor[:,:,j,i]
+        if type == "anisotropic_boxcar":
 
-        return cov_tensor
+            nx_box = 40
+            ny_box = 40
+
+            kernel = np.ones((nx_box,ny_box))/(nx_box*ny_box)
+            power_spectrum = np.fft.ifftshift(ndimage.convolve(np.fft.fftshift(power_spectrum),kernel,mode='reflect')).real
+
+        elif type == "anisotropic_gaussian":
+
+            gaussian_sigma = np.array([5,5])
+            power_spectrum = np.fft.ifftshift(ndimage.gaussian_filter(np.fft.fftshift(power_spectrum),sigma=gaussian_sigma,mode="reflect")).real
+
+        else:
+
+            print("Power spectrum estimation type not supported")
+            power_spectrum = None
+
+        m1 = np.sum(mask**2)/(pix.nx*pix.ny)
+        m2 = np.sum(mask**4)/(pix.nx*pix.ny)
+        ratio = m1**2/m2
+
+        power_spectrum = power_spectrum
+
+        return power_spectrum
+
+
 
 def interp_cov(ell_interp,ell,cov_tensor,interp_type="nearest"):
 
@@ -323,7 +336,6 @@ def interp_cov(ell_interp,ell,cov_tensor,interp_type="nearest"):
         for j in range(0,d3):
 
             interp_tensor[:,:,i,j] = interpolate.interp1d(ell,cov_tensor[:,i,j],kind=interp_type,bounds_error=False,fill_value="extrapolate")(ell_interp)
-            #interp_tensor[:,:,i,j] = np.interp(ell_interp,ell,cov_tensor[:,i,j])
 
     return interp_tensor
 
@@ -381,146 +393,6 @@ def correct_for_inpainting(input_spectrum,mask_point,lsep=3000):
 
     return (ell,cl_corrected)
 
-#Returns theory cross spectra for a given experiment. NOT convolved. Output units in muK
-
-class cross_spec_theory:
-
-    def __init__(self,ell,exp,freqs=None,cmb_flag=True,cib_flag=False,tsz_flag=False,
-    noise_flag=True,tsz_cib_flag=False):
-
-        if freqs is None:
-
-            freqs = np.arange(len(exp.nu_eff))
-
-        self.ell = ell
-        self.freqs = freqs
-        self.exp = exp
-        self.cross_spec_tensor = np.zeros((len(self.ell),len(self.freqs),len(self.freqs)))
-        #self.class_sz_file_name = "class_sz_tsz_cib_planck.npy"
-        self.class_sz_file_name = "class_sz_tsz_cib_all_exps.npy"
-
-        if cmb_flag == True:
-
-            ell_cmb,cl_cmb = get_camb_cltt(exp=None)
-
-            for i in range(0,len(self.freqs)):
-
-                for j in range(0,len(self.freqs)):
-
-                    self.cross_spec_tensor[:,i,j] = self.cross_spec_tensor[:,i,j] + np.interp(self.ell,ell_cmb,cl_cmb)
-
-        if tsz_flag == True:
-
-            [cl_sz,cl_cib_cib,cl_tsz_cib] = np.load(self.class_sz_file_name,allow_pickle=True)
-
-            ell_tsz = np.asarray(cl_sz["ell"])
-            cl_tsz = np.asarray(cl_sz["1h"]) + np.asarray(cl_sz["2h"])
-
-            for i in range(0,len(self.freqs)):
-
-                for j in range(0,len(self.freqs)):
-
-                    self.cross_spec_tensor[:,i,j] = self.cross_spec_tensor[:,i,j] + np.interp(self.ell,ell_tsz,cl_tsz)*self.exp.tsz_f_nu[self.freqs[i]]*self.exp.tsz_f_nu[self.freqs[j]]
-
-        if cib_flag == True:
-
-            [cl_sz,cl_cib_cib,cl_tsz_cib] = np.load(self.class_sz_file_name,allow_pickle=True)
-
-            cib_tensor = np.zeros(self.cross_spec_tensor.shape)
-
-            for i in range(0,len(self.freqs)):
-
-                for j in range(0,len(self.freqs)):
-
-                    freq_name_i = int(np.floor(exp.nu_eff[self.freqs[i]]/1e9))
-                    freq_name_j = int(np.floor(exp.nu_eff[self.freqs[j]]/1e9))
-
-                    freq_name_a = np.max([freq_name_i,freq_name_j])
-                    freq_name_b = np.min([freq_name_i,freq_name_j])
-
-                    cross_name = str(freq_name_a) + "x" + str(freq_name_b)
-
-                    ell_cib = np.asarray(cl_cib_cib[cross_name]["ell"])
-                    cl_cib = np.asarray(cl_cib_cib[cross_name]["2h"]) + np.asarray(cl_cib_cib[cross_name]["1h"])
-                    factor = ell_cib*(ell_cib+1.)/(2.*np.pi)
-                    cl_cib = cl_cib/factor
-
-                    cl_cib_muK = np.interp(self.ell,ell_cib,cl_cib)*1e-12*sed.MJysr_to_muK(self.exp.nu_eff[self.freqs[i]])*sed.MJysr_to_muK(self.exp.nu_eff[self.freqs[j]])
-
-                    cib_tensor[:,i,j] = cib_tensor[:,i,j] + cl_cib_muK
-
-            self.cross_spec_tensor = self.cross_spec_tensor + cib_tensor
-
-
-        if tsz_cib_flag == True:
-
-            [cl_sz,cl_cib_cib,cl_tsz_cib] = np.load(self.class_sz_file_name,allow_pickle=True)
-
-            cross_matrix = np.zeros(self.cross_spec_tensor.shape)
-
-            for i in range(0,len(self.freqs)):
-
-                for j in range(0,len(self.freqs)):
-
-                    freq_name = str(int(np.floor(exp.nu_eff[self.freqs[i]]/1e9)))
-
-                    ell_cib = np.asarray(cl_tsz_cib[freq_name]["ell"])
-                    cl_cib = np.asarray(cl_tsz_cib[freq_name]["2h"]) #+ np.asarray(cl_tsz_cib[freq_name]["1h"])
-                    factor = ell_cib*(ell_cib+1.)/(2.*np.pi)
-                    cl_cib = cl_cib/factor
-
-                    cl_tsz_cib_muK = np.interp(self.ell,ell_cib,cl_cib)*1e-12*sed.MJysr_to_muK(self.exp.nu_eff[self.freqs[i]])*self.exp.tsz_f_nu[self.freqs[j]]
-
-                    cross_matrix[:,i,j] = cl_tsz_cib_muK
-
-            cross_matrix = cross_matrix + cross_matrix.swapaxes(1,2)
-
-            self.cross_spec_tensor = self.cross_spec_tensor + cross_matrix
-
-        if noise_flag == True:
-
-            for i in range(0,len(self.freqs)):
-
-                self.cross_spec_tensor[:,i,i] = self.cross_spec_tensor[:,i,i] + maps.get_nl(self.exp.noise_levels[self.freqs[i]],0.,self.ell)
-
-class cross_spec_noise:
-
-    def __init__(self,ell,exp,freqs=None):
-
-        if freqs is None:
-
-            freqs = np.arange(len(exp.nu_eff))
-
-        self.ell = ell
-        self.freqs = freqs
-        self.exp = exp
-        self.cross_spec_tensor = np.zeros((len(self.ell),len(self.freqs),len(self.freqs)))
-
-        for i in range(0,len(self.freqs)):
-
-            self.cross_spec_tensor[:,i,i] = self.cross_spec_tensor[:,i,i] + maps.get_nl(self.exp.noise_levels[self.freqs[i]],0.,self.ell)
-
-
-def get_beam_tensor(ell,exp,freqs,beam_type="gaussian"):
-
-    beam_tensor = np.zeros((len(ell),len(freqs),len(freqs)))
-
-    for i in range(0,len(freqs)):
-
-        for j in range(0,len(freqs)):
-
-             if beam_type == "gaussian":
-
-                 beam_tensor[:,i,j] = maps.get_bl(exp.FWHM[freqs[i]],ell)*maps.get_bl(exp.FWHM[freqs[j]],ell)
-
-             elif beam_type == "real":
-
-                 ell_i,beam_i = exp.get_beam(freqs[i])
-                 ell_j,beam_j = exp.get_beam(freqs[j])
-                 beam_tensor[:,i,j] = np.interp(ell,ell_i,beam_i)*np.interp(ell,ell_j,beam_j)
-
-    return beam_tensor
-
 class ps_flat_sky:
 
     def __init__(self,pix,mask,ell_bins_edges=None,fac=4):
@@ -528,7 +400,7 @@ class ps_flat_sky:
         self.pix = pix
         self.mask = mask
         Lx = pix.nx*pix.dx
-        Ly = Lx
+        Ly = pix.ny*pix.dy
 
         if ell_bins_edges == None:
 
