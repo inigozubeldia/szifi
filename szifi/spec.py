@@ -315,12 +315,6 @@ def get_anisotropic_ps(map1,map2,pix,type="boxcar",mask=None):
             print("Power spectrum estimation type not supported")
             power_spectrum = None
 
-        m1 = np.sum(mask**2)/(pix.nx*pix.ny)
-        m2 = np.sum(mask**4)/(pix.nx*pix.ny)
-        ratio = m1**2/m2
-
-        power_spectrum = power_spectrum
-
         return power_spectrum
 
 
