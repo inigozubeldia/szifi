@@ -231,7 +231,7 @@ class cross_spec:
 
 
     def get_cov(self,pix,t_map=None,mask=None,bin_fac=4,new_shape=None,ps=None,
-    decouple_type="master",interp_type="nearest",cov_type="isotropic"):
+    decouple_type="master",interp_type="nearest",cov_type="isotropic",cov_kernel_shape=None):
         
         if cov_type == "isotropic":
 
@@ -262,18 +262,18 @@ class cross_spec:
 
         else:
 
-            cov_tensor = get_cov_anisotropic(t_map,pix,mask=mask,cov_type=cov_type)
+            cov_tensor = get_cov_anisotropic(t_map,pix,mask=mask,cov_type=cov_type,cov_kernel_shape=cov_kernel_shape)
 
         return cov_tensor # nx x ny x n_freq x n_freq covariance tensor
 
     def get_inv_cov(self,pix,t_map=None,mask=None,bin_fac=4,new_shape=None,ps=None,
-                    decouple_type="master",interp_type="nearest",cov_type="isotropic"):
+                    decouple_type="master",interp_type="nearest",cov_type="isotropic",cov_kernel_shape=None):
 
         return np.linalg.inv(self.get_cov(pix,t_map=t_map,mask=mask,bin_fac=bin_fac,new_shape=new_shape,
         ps=ps,decouple_type=decouple_type,interp_type=interp_type,
-        cov_type=cov_type))
+        cov_type=cov_type,cov_kernel_shape=cov_kernel_shape))
 
-def get_cov_anisotropic(t_map,pix,mask=None,cov_type=None):
+def get_cov_anisotropic(t_map,pix,mask=None,cov_type=None,cov_kernel_shape=None):
 
     n_freq = t_map.shape[2]
     cov_tensor = np.zeros((pix.nx,pix.ny,n_freq,n_freq),dtype=complex)
@@ -284,7 +284,7 @@ def get_cov_anisotropic(t_map,pix,mask=None,cov_type=None):
 
             if j >= i:
 
-                cov_tensor[:,:,i,j] = get_anisotropic_ps(t_map[:,:,i],t_map[:,:,j],pix,type=cov_type,mask=mask)
+                cov_tensor[:,:,i,j] = get_anisotropic_ps(t_map[:,:,i],t_map[:,:,j],pix,type=cov_type,mask=mask,cov_kernel_shape=cov_kernel_shape)
 
             else:
 
@@ -293,21 +293,18 @@ def get_cov_anisotropic(t_map,pix,mask=None,cov_type=None):
     return cov_tensor
 
 
-def get_anisotropic_ps(map1,map2,pix,type="boxcar",mask=None):
+def get_anisotropic_ps(map1,map2,pix,type="boxcar",mask=None,cov_kernel_shape=None):
                 
         power_spectrum = np.real(np.conjugate(maps.get_fft(map1*mask,pix))*maps.get_fft(map2*mask,pix))
 
         if type == "anisotropic_boxcar":
 
-            nx_box = 40
-            ny_box = 40
-
-            kernel = np.ones((nx_box,ny_box))/(nx_box*ny_box)
+            kernel = np.ones(cov_kernel_shape)/(cov_kernel_shape[0]*cov_kernel_shape[1])
             power_spectrum = np.fft.ifftshift(ndimage.convolve(np.fft.fftshift(power_spectrum),kernel,mode='reflect')).real
 
         elif type == "anisotropic_gaussian":
 
-            gaussian_sigma = np.array([5,5])
+            gaussian_sigma = np.array(cov_kernel_shape)
             power_spectrum = np.fft.ifftshift(ndimage.gaussian_filter(np.fft.fftshift(power_spectrum),sigma=gaussian_sigma,mode="reflect")).real
 
         else:

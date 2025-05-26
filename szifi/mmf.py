@@ -248,9 +248,10 @@ class cluster_finder:
                                                       bin_fac=bin_fac,
                                                       new_shape=new_shape,
                                                       mask=self.mask_ps,
-                                                      cov_type=self.params_szifi["cov_type"])
+                                                      cov_type=self.params_szifi["cov_type"],
+                                                      cov_kernel_shape=self.params_szifi["cov_kernel_shape"]
+                                                      )
 
-                
                 del self.mask_point
 
                 #Compute weights for constrained MMF

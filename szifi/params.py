@@ -18,6 +18,7 @@ params_szifi_default = {
 "powspec_new_shape": None, # New shape for calculating powspec on lower resolution map. One of this and powspec_lmax1d must be 'None'
 "powspec_bin_fac": 4, # Factor by which to bin Cls. There will be nx/bin_fac bins of width bin_fac * (pi/(nx*dx)) for a field of nx^2 pixels
 "cov_type": "isotropic", # "isotropic", "anisotropic_boxcar", or "anisotropic_gaussian"
+"cov_kernel_shape": [4.,4.], #shape in pixels of the smoothing kernel (Gaussian or boxcar) for anisotropic covariance estimation
 
 "lrange": [100,2500], #ell range to be used in the analysis, if None all the modes are used
 "freqs": [0,1,2,3,4,5], #Frequency channels to be used in the analysis
