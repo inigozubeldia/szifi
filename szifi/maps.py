@@ -7,10 +7,7 @@ import scipy.signal as sg
 import healpy as hp
 import scipy
 import scipy.stats as st
-
-from orphics import maps as omaps
 from pixell import enmap, utils
-import szifi.car as car
 
 #Functions for handling maps
 
@@ -513,6 +510,18 @@ def resample_fft_simple(d,n,ngroup=100):
 
         return res
 
+def get_target_wcs(dx_deg, field_shape, center_radec_deg):
+
+    from pixell import wcsutils
+    """Define a wcs object
+       dx_deg: pixel size in degrees
+       field_shape: 2-tuple shape of field in pixels, (dec, RA) or (y,x)
+       center_radec_deg: 2-tuple center of the field in RA, dec, degrees
+    """
+    wcs = wcsutils.explicit(ctype=["RA---CAR", "DEC--CAR"], cdelt=[-dx_deg, dx_deg],
+                            crpix=np.array(field_shape)[::-1]/2, crval=center_radec_deg)
+    return wcs
+
 def get_newshape_lmax1d(shape, lmax1d, dx_rad, powerOfTwo=False):
 
     """Get new shape for an array set by 1d-lmax (ie actual lmax will be sqrt(lmax_x^2 + lmax_y^2))"""
@@ -872,7 +881,7 @@ def get_fsky_criterion_mask(pix,mask_select,nside_tile,criterion=0.3,tile_type="
 
 class ps_mask:
 
-    def __init__(self,pix,n_source,r_source_arcmin,tile_type="healpix",wcs=None):
+    def __init__(self,pix,n_source,r_source_arcmin,max_radius_arcmin=np.inf,tile_type="healpix",wcs=None):
 
         self.pix = pix
         self.n_source = n_source
@@ -880,6 +889,7 @@ class ps_mask:
         self.tile_type = tile_type
         self.wcs = wcs
         self.r_source = self.r_source_arcmin/60./180.*np.pi
+        self.max_radius_arcmin = max_radius_arcmin
 
     def get_mask_map(self,source_coords=None):
 
@@ -902,7 +912,8 @@ class ps_mask:
                 dec_map, ra_map = pos
                 distances = utils.angdist([source_coords[i,0],source_coords[i,1]], [ra_map,dec_map]) 
 
-            indices = np.where(distances <= self.r_source)
+            radius = np.min([self.r_source,self.max_radius_arcmin/180./60.*np.pi])
+            indices = np.where(distances <= radius)
             mask[indices] = 0.
 
         return mask
@@ -1218,31 +1229,40 @@ def get_map_convolved_fft(map_fft_original,pix,freqs,beam_type,mask,lrange,exp):
 
     return a_map_fft
 
-def inpaint_freq(tmap,mask,n_inpaint=None, pix=None, noise=None):
+def inpaint_freq(tmap,mask,n_inpaint=None, pix=None, noise=None,inpaint_type="diffusive"):
 
     ret = np.zeros(tmap.shape, dtype=tmap.dtype)
     noise = [None]*tmap.shape[2] if noise is None else noise
     for i in range(0,tmap.shape[2]):
 
-        ret[:,:,i] = inpaint(tmap[:,:,i],mask,n_inpaint, pix, noise[i])
+        ret[:,:,i] = inpaint(tmap[:,:,i],mask,n_inpaint, pix, noise[i],inpaint_type=inpaint_type)
 
     if isinstance(tmap, enmap.ndmap):
         ret = enmap.ndmap(ret, wcs=tmap.wcs)
 
     return ret
 
-def inpaint(image, mask, n_inpaint=None, pix=None, noise=None):
-    if n_inpaint is not None:
+def inpaint(image, mask, n_inpaint=None, pix=None, noise=None, inpaint_type="diffusive"):
+
+    if inpaint_type == "diffusive":
+
         inpainted_image = diffusive_inpaint(image, mask, n_inpaint)  # Legacy inpaint
-    else:
+    
+    elif inpaint_type == "orphics":
+
+        from orphics import maps as omaps
+
         if not isinstance(image, enmap.ndmap):  # We need an ndmap
+
             shape = (pix.ny, pix.nx)
-            wcs = car.get_target_wcs(np.rad2deg(pix.dx), shape, (0,0))
+            wcs = get_target_wcs(np.rad2deg(pix.dx), shape, (0,0))
             image = enmap.ndmap(image, wcs=wcs)
             mask = enmap.ndmap(mask, wcs=wcs)
 
         ivar = omaps.ivar(image.shape, image.wcs, noise_muK_arcmin=noise) if noise is not None else None
         inpainted_image = omaps.gapfill_edge_conv_flat(image, ~mask.astype(bool), ivar=ivar, rmin=0.5*utils.arcmin, alpha=-4)
+
+
     return inpainted_image
 
 @jit(nopython=False)

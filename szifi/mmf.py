@@ -135,7 +135,13 @@ class cluster_finder:
 
             if self.params_szifi["inpaint"] == True:
 
-                self.t_obs = maps.inpaint_freq(self.t_obs,self.mask_point,n_inpaint=self.params_szifi["n_inpaint"],pix=self.pix, noise=self.exp.noise_levels)
+                self.t_obs = maps.inpaint_freq(self.t_obs,
+                                               self.mask_point,
+                                               n_inpaint=self.params_szifi["n_inpaint"],
+                                               pix=self.pix,
+                                               noise=self.exp.noise_levels,
+                                               inpaint_type=self.params_szifi["inpaint_type"],
+                                               )
 
             mask_point_0 = self.mask_point
 
@@ -438,7 +444,7 @@ class cluster_finder:
                 self.results_for_masking,
                 self.params_szifi["q_th_noise"],
                 self.params_szifi["mask_radius"],
-                self.params_szifi["max_radius_arcmin"])
+                self.params_szifi["max_radius_mask_arcmin"],
                 tile_type=self.params_szifi["tile_type"],
                 wcs=self.wcs)
 
@@ -486,7 +492,7 @@ def get_cluster_mask(pix,catalogue,q_th_noise,mask_radius,max_radius_arcmin=1e9,
                 source_coords[0,0] = catalogue.catalogue["ra"][j]
                 source_coords[0,1] = catalogue.catalogue["dec"][j]
 
-            mask_cluster *= maps.ps_mask(pix,1,catalogue.catalogue["theta_500"][j]*mask_radius,max_radius_arcmin,tile_type=tile_type,wcs=wcs).get_mask_map(source_coords=source_coords)
+            mask_cluster *= maps.ps_mask(pix,1,catalogue.catalogue["theta_500"][j]*mask_radius,max_radius_arcmin=max_radius_arcmin,tile_type=tile_type,wcs=wcs).get_mask_map(source_coords=source_coords)
 
     return mask_cluster
 
@@ -647,21 +653,21 @@ class filter_maps:
             cmmf_prec=self.cmmf,
             tem_norm=t_tem_norm)
 
-            import pylab as pl
+            # import pylab as pl
 
-            pl.figure()
-            pl.imshow(q_map,vmax=4.)
-            pl.colorbar()
-            pl.savefig("/home/iz221/szifi/test_files/figures/q_map.pdf")
-            pl.show()
+            # pl.figure()
+            # pl.imshow(q_map,vmax=4.)
+            # pl.colorbar()
+            # pl.savefig("/home/iz221/szifi/test_files/figures/q_map.pdf")
+            # pl.show()
 
             i_min = int(self.pix.nx/2 - self.pix.nx/8.)
             i_max = int(self.pix.nx/2 + self.pix.nx/8.)
             j_min = int(self.pix.ny/2 - self.pix.ny/8.)
             j_max = int(self.pix.ny/2 + self.pix.ny/8.)
         
-            print("SNR mean",np.mean(q_map[i_min:i_max,j_min:j_max]))
-            print("SNR std",np.std(q_map[i_min:i_max,j_min:j_max]))
+            # print("SNR mean",np.mean(q_map[i_min:i_max,j_min:j_max]))
+            # print("SNR std",np.std(q_map[i_min:i_max,j_min:j_max]))
 
             # pl.figure()
             # pl.hist(q_map,bins=50)
@@ -771,7 +777,7 @@ class filter_maps:
                 x_est = x_coord[(indices[0],indices[1])]
                 y_est = y_coord[(indices[0],indices[1])]
                 theta_est = self.theta_500_vec[indices[2]]
-                n_detect = len(q_opt)
+                #n_detect = len(q_opt)
 
             cat_new = cat.cluster_catalogue()
 

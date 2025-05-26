@@ -25,8 +25,10 @@ params_szifi_default = {
 
 "interp_type": "nearest",
 "n_inpaint": 100, #number of iterations for diffusive inpainting for point sources
+"inpaint_type": "diffusive", #"diffusive", ""
 "inpaint": True, #if True, point sources are inpainted
 "lsep": 3000,
+"max_radius_mask_arcmin": np.inf, #Maximum radius in arcmin to mask around clusters
 
 "extraction_mode":"find", #"fixed" or "find"
 "get_q_true":False, #has superseeded "extract_at_truth"
