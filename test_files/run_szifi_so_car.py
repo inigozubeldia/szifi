@@ -11,7 +11,7 @@ import time
 params_szifi = {
 #"theta_500_vec_arcmin": np.exp(np.linspace(np.log(0.1),np.log(15.),20)), #cluster search angular scales
 # "theta_500_vec_arcmin": np.exp(np.linspace(np.log(0.1),np.log(15.),20))[np.array([0, 4, 9, 14, 19])], #cluster search angular scales
-"theta_500_vec_arcmin": np.array([1.,2.,4.,7.]), #cluster search angular scales
+"theta_500_vec_arcmin": np.array([2.,3.]), #cluster search angular scales
 "q_th": 4.5, #detection threshold
 "q_th_noise": 4., #detection threshold to remove detections for iterative covariance estimation
 "mask_radius": 3., #masking radius for iterative covariance estimation in units of theta_500 for each detection
@@ -25,7 +25,9 @@ params_szifi = {
 "powspec_lmax1d": 10000, # maximum lmax for power spectra. Maps and masks will be degraded to this lmax before computing coupling matrix and power spectra
 "powspec_new_shape": None, # New shape for calculating powspec on lower resolution map. One of this and powspec_lmax1d must be 'None'
 "powspec_bin_fac": 4, # Factor by which to bin Cls. There will be nx/bin_fac bins of width bin_fac * (pi/(nx*dx)) for a field of nx^2 pixels
-"lrange": [100,10000], #ell range to be used in the analysis, if None all the modes are used
+"cov_type": "anisotropic_gaussian",#"anisotropic_boxcar",# "isotropic", "anisotropic_boxcar", or "anisotropic_gaussian"
+"cov_kernel_shape": [3,3],
+"lrange": [1,300000], #ell range to be used in the analysis, if None all the modes are used
 "freqs": [0,1,2,3], #Frequency channels to be used in the analysis
 "beam": "gaussian", #"gaussian" or "real"
 "interp_type": "nearest",
@@ -40,6 +42,8 @@ params_szifi = {
 "tilemask_mode": "catalogue",
 "tilemask_buffer_arcmin": 30,
 "tile_type": "car", #"healpix" or "car"
+"inpaint_type": "orphics",
+"max_radius_mask_arcmin": np.inf,
 
 "theta_find": "input",
 "detection_method": "maxima_lomem",
