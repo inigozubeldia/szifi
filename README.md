@@ -18,7 +18,7 @@ You'll then be able to import SZiFi in Python with
 ```
 import szifi
 ```
-Dependencies: [astropy](https://www.astropy.org), [healpy](https://healpy.readthedocs.io/en/latest/), [pymaster](https://namaster.readthedocs.io), [scikit-learn](https://scikit-learn.org/stable/) (optional), [SZpack](https://github.com/CMBSPEC/SZpack) (optional), [pixell](https://github.com/simonsobs/pixell/tree/master) (optional).
+Dependencies: [astropy](https://www.astropy.org), [healpy](https://healpy.readthedocs.io/en/latest/), [pymaster](https://namaster.readthedocs.io), [scikit-learn](https://scikit-learn.org/stable/) (optional), [SZpack](https://github.com/CMBSPEC/SZpack) (optional), [pixell](https://github.com/simonsobs/pixell/tree/master) (optional), [orphics](https://github.com/msyriac/orphics) (optional).
 
 ### Sample scripts
 
