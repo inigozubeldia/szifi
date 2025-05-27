@@ -233,7 +233,7 @@ class cross_spec:
     def get_cov(self,pix,t_map=None,mask=None,bin_fac=4,new_shape=None,ps=None,
     decouple_type="master",interp_type="nearest",cov_type="isotropic",cov_kernel_shape=None):
         
-        if cov_type == "isotropic":
+        def get_cov_isotropic():
 
             if self.spec_tensor is None:
 
@@ -249,9 +249,16 @@ class cross_spec:
                 ell_vec = self.ell_vec
                 spec_tensor = self.spec_tensor
 
-            pix = maps.degrade_pix(pix, new_shape)
-            ell_map = maps.rmap(pix).get_ell()
+            pix_d = maps.degrade_pix(pix,new_shape)
+            ell_map = maps.rmap(pix_d).get_ell()
             cov_tensor = interp_cov(ell_map,ell_vec,spec_tensor,interp_type=interp_type)
+      
+            return cov_tensor
+
+              
+        if cov_type == "isotropic":
+
+            cov_tensor = get_cov_isotropic()
 
             # import pylab as pl
             # pl.figure()
@@ -260,10 +267,17 @@ class cross_spec:
             # pl.show()
             # quit()
 
-        else:
+            print(cov_tensor.shape)
+
+        elif cov_type == "anisotropic_gaussian" or cov_type == "anisotropic_boxcar":
 
             cov_tensor = get_cov_anisotropic(t_map,pix,mask=mask,cov_type=cov_type,cov_kernel_shape=cov_kernel_shape)
 
+        elif cov_type == "mixed_gaussian" or cov_type == "mixed_boxcar":
+
+            cov_tensor_isotropic = get_cov_isotropic()
+            cov_tensor = get_cov_anisotropic(t_map,pix,mask=mask,cov_type=cov_type,cov_kernel_shape=cov_kernel_shape,cov_tensor_isotropic=cov_tensor_isotropic)
+       
         return cov_tensor # nx x ny x n_freq x n_freq covariance tensor
 
     def get_inv_cov(self,pix,t_map=None,mask=None,bin_fac=4,new_shape=None,ps=None,
@@ -273,10 +287,17 @@ class cross_spec:
         ps=ps,decouple_type=decouple_type,interp_type=interp_type,
         cov_type=cov_type,cov_kernel_shape=cov_kernel_shape))
 
-def get_cov_anisotropic(t_map,pix,mask=None,cov_type=None,cov_kernel_shape=None):
+def get_cov_anisotropic(t_map,pix,mask=None,cov_type=None,cov_kernel_shape=None,cov_tensor_isotropic=None):
 
     n_freq = t_map.shape[2]
-    cov_tensor = np.zeros((pix.nx,pix.ny,n_freq,n_freq),dtype=complex)
+
+    if cov_tensor_isotropic is None:
+
+        cov_tensor = np.zeros((pix.nx,pix.ny,n_freq,n_freq))
+
+    else:
+
+        cov_tensor = np.zeros(cov_tensor_isotropic.shape)
 
     for i in range(0,n_freq):
 
@@ -284,7 +305,15 @@ def get_cov_anisotropic(t_map,pix,mask=None,cov_type=None,cov_kernel_shape=None)
 
             if j >= i:
 
-                cov_tensor[:,:,i,j] = get_anisotropic_ps(t_map[:,:,i],t_map[:,:,j],pix,type=cov_type,mask=mask,cov_kernel_shape=cov_kernel_shape)
+                if cov_tensor_isotropic is None:
+
+                    ps_isotropic = None
+
+                else:
+
+                    ps_isotropic = cov_tensor_isotropic[:,:,i,j]
+
+                cov_tensor[:,:,i,j] = get_anisotropic_ps(t_map[:,:,i],t_map[:,:,j],pix,type=cov_type,mask=mask,cov_kernel_shape=cov_kernel_shape,ps_isotropic=ps_isotropic)
 
             else:
 
@@ -293,16 +322,21 @@ def get_cov_anisotropic(t_map,pix,mask=None,cov_type=None,cov_kernel_shape=None)
     return cov_tensor
 
 
-def get_anisotropic_ps(map1,map2,pix,type="boxcar",mask=None,cov_kernel_shape=None):
-                
+def get_anisotropic_ps(map1,map2,pix,type="boxcar",mask=None,cov_kernel_shape=None,ps_isotropic=None):
+        
         power_spectrum = np.real(np.conjugate(maps.get_fft(map1*mask,pix))*maps.get_fft(map2*mask,pix))
 
-        if type == "anisotropic_boxcar":
+        if ps_isotropic is not None:
+
+            power_spectrum = maps.reshape_ell_matrix(power_spectrum, ps_isotropic.shape)
+            power_spectrum = power_spectrum/ps_isotropic
+
+        if type == "anisotropic_boxcar" or type == "mixed_boxcar":
 
             kernel = np.ones(cov_kernel_shape)/(cov_kernel_shape[0]*cov_kernel_shape[1])
             power_spectrum = np.fft.ifftshift(ndimage.convolve(np.fft.fftshift(power_spectrum),kernel,mode='reflect')).real
 
-        elif type == "anisotropic_gaussian":
+        elif type == "anisotropic_gaussian" or type == "mixed_gaussian":
 
             gaussian_sigma = np.array(cov_kernel_shape)
             power_spectrum = np.fft.ifftshift(ndimage.gaussian_filter(np.fft.fftshift(power_spectrum),sigma=gaussian_sigma,mode="reflect")).real
@@ -311,6 +345,10 @@ def get_anisotropic_ps(map1,map2,pix,type="boxcar",mask=None,cov_kernel_shape=No
 
             print("Power spectrum estimation type not supported")
             power_spectrum = None
+
+        if ps_isotropic is not None:
+
+            power_spectrum = power_spectrum*ps_isotropic
 
         return power_spectrum
 

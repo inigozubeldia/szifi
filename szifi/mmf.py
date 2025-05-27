@@ -201,9 +201,15 @@ class cluster_finder:
                 self.mask_point = mask_point_0*mask_cluster
 
                 #Inpaint noise map (as it may change with iteration)
+
                 if self.params_szifi["inpaint"] == True:
 
-                    self.t_noi = maps.inpaint_freq(t_noi_original,self.mask_point,n_inpaint=self.params_szifi["n_inpaint"], pix=self.pix, noise=self.exp.noise_levels, inpaint_type=self.params_szifi["inpaint_type"])
+                    self.t_noi = maps.inpaint_freq(t_noi_original,
+                                                   self.mask_point,
+                                                   n_inpaint=self.params_szifi["n_inpaint"],
+                                                   pix=self.pix,
+                                                   noise=self.exp.noise_levels,
+                                                   inpaint_type=self.params_szifi["inpaint_type"])
 
                 self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"],indices_filter=self.indices_filter)
 
@@ -251,7 +257,7 @@ class cluster_finder:
                                                       cov_type=self.params_szifi["cov_type"],
                                                       cov_kernel_shape=self.params_szifi["cov_kernel_shape"]
                                                       )
-
+                
                 del self.mask_point
 
                 #Compute weights for constrained MMF
@@ -662,10 +668,10 @@ class filter_maps:
             # pl.savefig("/home/iz221/szifi/test_files/figures/q_map.pdf")
             # pl.show()
 
-            i_min = int(self.pix.nx/2 - self.pix.nx/8.)
-            i_max = int(self.pix.nx/2 + self.pix.nx/8.)
-            j_min = int(self.pix.ny/2 - self.pix.ny/8.)
-            j_max = int(self.pix.ny/2 + self.pix.ny/8.)
+            # i_min = int(self.pix.nx/2 - self.pix.nx/8.)
+            # i_max = int(self.pix.nx/2 + self.pix.nx/8.)
+            # j_min = int(self.pix.ny/2 - self.pix.ny/8.)
+            # j_max = int(self.pix.ny/2 + self.pix.ny/8.)
         
             # print("SNR mean",np.mean(q_map[i_min:i_max,j_min:j_max]))
             # print("SNR std",np.std(q_map[i_min:i_max,j_min:j_max]))
@@ -1103,7 +1109,7 @@ def get_maxima(max_mask):
 
 #Get SNR map
 
-def get_mmf_q_map(tmap,tem,inv_cov,pix,theta_misc_template=[0.,0.],
+def get_mmf_q_map(tmap,tem,inv_cov,pix,
 mmf_type="standard",cmmf_prec=None,comp=0,tem_norm=None):
 
     n_freqs = tmap.shape[2]
