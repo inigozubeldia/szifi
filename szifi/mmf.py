@@ -203,7 +203,7 @@ class cluster_finder:
                 #Inpaint noise map (as it may change with iteration)
                 if self.params_szifi["inpaint"] == True:
 
-                    self.t_noi = maps.inpaint_freq(t_noi_original,self.mask_point,n_inpaint=self.params_szifi["n_inpaint"], pix=self.pix, noise=self.exp.noise_levels)
+                    self.t_noi = maps.inpaint_freq(t_noi_original,self.mask_point,n_inpaint=self.params_szifi["n_inpaint"], pix=self.pix, noise=self.exp.noise_levels, inpaint_type=self.params_szifi["inpaint_type"])
 
                 self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"],indices_filter=self.indices_filter)
 
