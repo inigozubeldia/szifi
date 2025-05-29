@@ -19,6 +19,7 @@ params_szifi_default = {
 "powspec_bin_fac": 4, # Factor by which to bin Cls. There will be nx/bin_fac bins of width bin_fac * (pi/(nx*dx)) for a field of nx^2 pixels
 "cov_type": "isotropic", # "isotropic", "anisotropic_boxcar", or "anisotropic_gaussian"
 "cov_kernel_shape": [4.,4.], #shape in pixels of the smoothing kernel (Gaussian or boxcar) for anisotropic covariance estimation
+"snr_weigthing": False, #whether to weight the SNR maps by some weights (e.g., given by the hitcounts). If True, the weight map for each tile should be provided in the survey file
 
 "lrange": [100,2500], #ell range to be used in the analysis, if None all the modes are used
 "freqs": [0,1,2,3,4,5], #Frequency channels to be used in the analysis
@@ -30,6 +31,7 @@ params_szifi_default = {
 "inpaint": True, #if True, point sources are inpainted
 "lsep": 3000,
 "max_radius_mask_arcmin": np.inf, #Maximum radius in arcmin to mask around clusters
+"min_radius_mask_arcmin": 0., #Maximum radius in arcmin to mask around clusters. Should be informed by the beam widths.
 
 "extraction_mode":"find", #"fixed" or "find"
 "get_q_true":False, #has superseeded "extract_at_truth"

@@ -8,6 +8,7 @@ import healpy as hp
 import scipy
 import scipy.stats as st
 from pixell import enmap, utils
+from scipy.ndimage import label, distance_transform_edt
 
 #Functions for handling maps
 
@@ -881,7 +882,7 @@ def get_fsky_criterion_mask(pix,mask_select,nside_tile,criterion=0.3,tile_type="
 
 class ps_mask:
 
-    def __init__(self,pix,n_source,r_source_arcmin,max_radius_arcmin=np.inf,tile_type="healpix",wcs=None):
+    def __init__(self,pix,n_source,r_source_arcmin,tile_type="healpix",wcs=None):
 
         self.pix = pix
         self.n_source = n_source
@@ -889,7 +890,6 @@ class ps_mask:
         self.tile_type = tile_type
         self.wcs = wcs
         self.r_source = self.r_source_arcmin/60./180.*np.pi
-        self.max_radius_arcmin = max_radius_arcmin
 
     def get_mask_map(self,source_coords=None):
 
@@ -912,8 +912,7 @@ class ps_mask:
                 dec_map, ra_map = pos
                 distances = utils.angdist([source_coords[i,0],source_coords[i,1]], [ra_map,dec_map]) 
 
-            radius = np.min([self.r_source,self.max_radius_arcmin/180./60.*np.pi])
-            indices = np.where(distances <= radius)
+            indices = np.where(distances <= self.r_source)
             mask[indices] = 0.
 
         return mask
@@ -1233,11 +1232,13 @@ def inpaint_freq(tmap,mask,n_inpaint=None, pix=None, noise=None,inpaint_type="di
 
     ret = np.zeros(tmap.shape, dtype=tmap.dtype)
     noise = [None]*tmap.shape[2] if noise is None else noise
+
     for i in range(0,tmap.shape[2]):
 
         ret[:,:,i] = inpaint(tmap[:,:,i],mask,n_inpaint, pix, noise[i],inpaint_type=inpaint_type)
 
     if isinstance(tmap, enmap.ndmap):
+
         ret = enmap.ndmap(ret, wcs=tmap.wcs)
 
     return ret
@@ -1262,8 +1263,85 @@ def inpaint(image, mask, n_inpaint=None, pix=None, noise=None, inpaint_type="dif
         ivar = omaps.ivar(image.shape, image.wcs, noise_muK_arcmin=noise) if noise is not None else None
         inpainted_image = omaps.gapfill_edge_conv_flat(image, ~mask.astype(bool), ivar=ivar, rmin=0.5*utils.arcmin, alpha=-4)
 
-
     return inpainted_image
+
+def circular_cosine_blend_adaptive(
+    original_map, inpainted_map, mask,
+    inner_zero_frac=0., min_radius=0., pad=2
+):
+    """
+    Faster adaptive region blending: For each hole, work in a padded bounding box
+    so distance transform matches the global answer.
+
+    Parameters
+    ----------
+    original_map : 2D np.ndarray
+    inpainted_map : 2D np.ndarray
+    mask : 2D np.ndarray, 1=valid, 0=masked (CMB convention)
+    inner_zero_frac : float (0..1)
+    min_radius : float
+    pad : int, number of pixels to pad box (minimum pad=annulus width+1 is safe)
+    Returns
+    -------
+    blended : 2D array, smooth transitions, accurate and fast
+    """
+    import numpy as np
+    from scipy.ndimage import label, distance_transform_edt
+
+    assert 0 <= inner_zero_frac < 1, "inner_zero_frac must be in [0, 1)"
+
+    mask_bin = mask > 0.5  # 1 = valid, 0 = masked
+
+    blended = original_map.copy()
+    blended[~mask_bin] = inpainted_map[~mask_bin]
+
+    structure = np.array([[1,1,1], [1,1,1], [1,1,1]], dtype=bool)
+    labeled_mask, n_regions = label(~mask_bin, structure=structure)
+
+    for region_idx in range(1, n_regions+1):
+        region_mask_full = (labeled_mask == region_idx)
+        area = np.sum(region_mask_full)
+        if area == 0:
+            continue
+        radius = np.sqrt(area / np.pi)
+        if radius < min_radius:
+            continue
+
+        # -- STEP 1: Find padded bounding box (with a few-pixel margin)
+        yy, xx = np.where(region_mask_full)
+        y0 = max(np.min(yy) - pad, 0)
+        y1 = min(np.max(yy) + pad + 1, original_map.shape[0])
+        x0 = max(np.min(xx) - pad, 0)
+        x1 = min(np.max(xx) + pad + 1, original_map.shape[1])
+
+        region_box = region_mask_full[y0:y1, x0:x1]
+        orig_patch = original_map[y0:y1, x0:x1]
+        inpaint_patch = inpainted_map[y0:y1, x0:x1]
+        blend_patch = blended[y0:y1, x0:x1]
+
+        # -- STEP 2: Distance transform in small patch (region is True, rest is 0)
+        r = distance_transform_edt(region_box)
+
+        blend_core_radius = inner_zero_frac * radius
+        blending_annulus = region_box & (r > blend_core_radius) & (r <= radius)
+        # Center region: already pure inpainted in blended
+
+        w = np.zeros_like(r, dtype=float)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            w[blending_annulus] = 0.5 * (
+                1 + np.cos(np.pi * (r[blending_annulus] - blend_core_radius) / (radius - blend_core_radius))
+            )
+
+        # Apply blending in patch, only to annulus
+        blend_patch[blending_annulus] = (
+            w[blending_annulus] * orig_patch[blending_annulus] +
+            (1 - w[blending_annulus]) * inpaint_patch[blending_annulus]
+        )
+        # Write back blended patch
+        blended[y0:y1, x0:x1] = blend_patch
+
+    return blended
+
 
 @jit(nopython=False)
 def diffusive_inpaint(image,mask,n_inpaint):
@@ -1407,3 +1485,117 @@ def get_expanded_map_car(full_map, radec, expansion_deg=1.0):
             ((ra_map - ra_min) % (360.) <= (ra_max - ra_min) % (360.))).astype(float)
 
     return submap_expanded, mask
+
+def smooth_mask_transition(map, mask, n_buffer):
+
+    from scipy.ndimage import gaussian_filter
+
+    """
+    Smooth the transition between masked and unmasked regions using a buffer zone.
+    The buffer zone is defined as n_buffer pixels around the mask boundary.
+    Uses a Gaussian filter to create a smooth transition mask.
+    
+    Parameters:
+    -----------
+    map : 2D numpy array
+        Input map, with different values in masked and unmasked regions
+    mask : 2D numpy array
+        Boolean mask where True indicates masked regions
+    n_buffer : int
+        Width of the buffer zone in pixels
+    
+    Returns:
+    --------
+    smoothed_map : 2D numpy array
+        Map with smoothed transitions in the buffer zone
+    """
+    # Convert mask to float and apply Gaussian filter to create smooth transition
+    # sigma = n_buffer/2 creates a smoother transition over ~n_buffer pixels
+    sigma = n_buffer / 2.0
+    smooth_mask = gaussian_filter(mask.astype(float), sigma=sigma)
+    
+    # Create the smoothed map by blending between masked and unmasked regions
+    # For pixels in the masked region (smooth_mask ≈ 1), use the masked value
+    # For pixels in the unmasked region (smooth_mask ≈ 0), use the unmasked value
+    # For pixels in the buffer zone (0 < smooth_mask < 1), blend between the two
+    smoothed_map = np.zeros_like(map)
+    
+    # Get the masked and unmasked values
+    masked_values = np.where(mask.astype(int), map, 0)
+    unmasked_values = np.where(~mask.astype(int), map, 0)
+    
+    # Blend using the smooth mask
+    smoothed_map = (1 - smooth_mask) * unmasked_values + smooth_mask * masked_values
+    
+    return smoothed_map
+
+
+def smooth_inpainting_border(map, mask, n_buffer):
+
+    mask = mask.astype(int)
+
+    from scipy.ndimage import distance_transform_edt
+
+    """
+    Blend in a buffer zone just *inside* the mask, smoothing the transition
+    from inpainted to real data.
+
+    map : 2D numpy array (inpainted map)
+    mask: 2D boolean array (True=masked/inpainted, False=real)
+    n_buffer : int (number of pixels for buffer inside mask)
+
+    Returns: blended map (same shape)
+    """
+
+    # Distance to nearest real (unmasked) pixel,
+    # and the indices of that nearest real pixel
+    distance, (i_ind, j_ind) = distance_transform_edt(mask, return_indices=True)
+
+    # Only blend in the buffer zone *inside* the mask
+    blend_region = (mask) & (distance <= n_buffer)
+
+    # Linear weight: 1 at edge (closest to real), 0 at n_buffer interior
+    blend_weight = np.clip(1 - distance / n_buffer, 0, 1)
+
+    # For each pixel inside buffer, get value of *nearest real (unmasked)* pixel
+    real_neighbor = map[i_ind, j_ind]
+
+    # Output = original map (mostly inpainted), except in blend_region
+    blended = np.copy(map)
+    blended[blend_region] = (
+        blend_weight[blend_region] * real_neighbor[blend_region] +
+        (1 - blend_weight[blend_region]) * map[blend_region]
+    )
+    return blended
+
+def feather_mask_edge(map, mask, n_buffer):
+    from scipy.ndimage import distance_transform_edt
+
+   # map = map.astype(int)
+
+    mask = mask.astype(bool)
+
+    """
+    Smooth transition at the mask edge by blending the inpainted buffer
+    just inside the mask using a linear ramp, does NOT touch real data.
+    """
+    # Distance to nearest unmasked pixel.
+    distance = distance_transform_edt(mask)
+    blend_region = (mask) & (distance <= n_buffer)
+
+    # Compute final mask: 1 inside, 0 at edge
+    blend_weight = np.clip(distance / n_buffer, 0, 1)
+    feathered = np.copy(map)
+    # Optionally: assign edge pixels as average of valid neighbors
+    from scipy.ndimage import convolve
+    kernel = np.array([[0,1,0],[1,0,1],[0,1,0]]) # 4-way
+    edge_val = convolve(np.where(~mask, map, 0), kernel, mode='constant', cval=0)
+    norm = convolve((~mask).astype(float), kernel, mode='constant', cval=0)
+    edge_pix = ((mask) & (distance==1))
+    # fallback to nearest if currently 0
+    edge_val[edge_pix & (norm>0)] /= norm[edge_pix & (norm>0)]
+
+    # Blend just buffer region between inpainted value and (weighted) edge value
+    feathered[blend_region] = (blend_weight[blend_region] * map[blend_region] +
+                               (1-blend_weight[blend_region]) * edge_val[blend_region])
+    return feathered

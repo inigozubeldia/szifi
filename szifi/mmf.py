@@ -90,6 +90,12 @@ class cluster_finder:
             self.mask_peak_finding_no_tile = utils.extract(self.data_file,"mask_peak_finding_no_tile",field_id,map_dtype)
             self.mask_peak_finding = utils.extract(self.data_file,"mask_peak_finding",field_id,map_dtype)
 
+            self.weights = None
+
+            if self.params_szifi["snr_weighting"] == True:
+
+                self.weights = utils.extract(self.data_file,"snr_weights",field_id,map_dtype)
+ 
             self.dx = self.data_file["dx_arcmin"][field_id]/60./180.*np.pi
             self.nx = self.data_file["nx"][field_id]
             self.dy = self.dx
@@ -135,6 +141,7 @@ class cluster_finder:
 
             if self.params_szifi["inpaint"] == True:
 
+
                 self.t_obs = maps.inpaint_freq(self.t_obs,
                                                self.mask_point,
                                                n_inpaint=self.params_szifi["n_inpaint"],
@@ -173,6 +180,8 @@ class cluster_finder:
 
             self.indices_filter = tuple(np.asarray(np.where((maps.rmap(self.pix).get_ell() < lmin) |  (maps.rmap(self.pix).get_ell() > lmax)),dtype=np.int32))
 
+            t_noi_original_before_filter = self.t_noi.copy()
+
             self.t_obs = maps.filter_tmap(self.t_obs,self.pix,self.params_szifi["lrange"],indices_filter=self.indices_filter)
             self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"],indices_filter=self.indices_filter)
 
@@ -210,9 +219,13 @@ class cluster_finder:
                                                    pix=self.pix,
                                                    noise=self.exp.noise_levels,
                                                    inpaint_type=self.params_szifi["inpaint_type"])
+                                        
+                    for ll in range(0,self.t_noi.shape[2]):
+            
+                        self.t_noi[:,:,ll] = maps.circular_cosine_blend_adaptive(t_noi_original[:,:,ll],self.t_noi[:,:,ll],self.mask_point,inner_zero_frac=0.)
 
-                self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"],indices_filter=self.indices_filter)
-
+                    self.t_noi = maps.filter_tmap(self.t_noi,self.pix,self.params_szifi["lrange"],indices_filter=self.indices_filter)
+                
                 #Estimate channel cross-spectra
 
                 lmax1d = self.params_szifi["powspec_lmax1d"]
@@ -338,7 +351,8 @@ class cluster_finder:
                 rank=self.rank,
                 exp=self.exp,
                 cmmf=self.cmmf,
-                wcs=self.wcs)
+                wcs=self.wcs,
+                weights=self.weights)
 
                 #SZiFi in cluster finding mode: blind cluster detection
 
@@ -451,9 +465,10 @@ class cluster_finder:
                 self.results_for_masking,
                 self.params_szifi["q_th_noise"],
                 self.params_szifi["mask_radius"],
-                self.params_szifi["max_radius_mask_arcmin"],
                 tile_type=self.params_szifi["tile_type"],
-                wcs=self.wcs)
+                wcs=self.wcs,
+                max_masking_radius_arcmin=self.params_szifi["max_radius_mask_arcmin"],
+                min_masking_radius_arcmin=self.params_szifi["min_radius_mask_arcmin"])
 
                 clusters_masked_old = clusters_masked_new
 
@@ -478,7 +493,7 @@ class cluster_finder:
 
 #Get mask at the location of detected clusters (for iterative noise covariance estimation)
 
-def get_cluster_mask(pix,catalogue,q_th_noise,mask_radius,max_radius_arcmin=1e9,tile_type="healpix",wcs=None):
+def get_cluster_mask(pix,catalogue,q_th_noise,mask_radius,max_masking_radius_arcmin=np.inf,tile_type="healpix",wcs=None,min_masking_radius_arcmin=0.):
 
     mask_cluster = np.ones((pix.nx,pix.ny))
 
@@ -499,7 +514,8 @@ def get_cluster_mask(pix,catalogue,q_th_noise,mask_radius,max_radius_arcmin=1e9,
                 source_coords[0,0] = catalogue.catalogue["ra"][j]
                 source_coords[0,1] = catalogue.catalogue["dec"][j]
 
-            mask_cluster *= maps.ps_mask(pix,1,catalogue.catalogue["theta_500"][j]*mask_radius,max_radius_arcmin=max_radius_arcmin,tile_type=tile_type,wcs=wcs).get_mask_map(source_coords=source_coords)
+            masking_radius_arcmin = max(min_masking_radius_arcmin,min(max_masking_radius_arcmin,catalogue.catalogue["theta_500"][j]*mask_radius))
+            mask_cluster *= maps.ps_mask(pix,1,masking_radius_arcmin,tile_type=tile_type,wcs=wcs).get_mask_map(source_coords=source_coords)
 
     return mask_cluster
 
@@ -509,7 +525,7 @@ class filter_maps:
 
     def __init__(self,t_obs=None,inv_cov=None,pix=None,cosmology=None,theta_500_vec=None,
     params=None,field_id=0,i_it=0,mask_map=None,mask_select_dict=None,
-    mask_peak_finding_dict=None,rank=0,exp=None,cmmf=None,params_model=None,indices_filter=None,wcs=None):
+    mask_peak_finding_dict=None,rank=0,exp=None,cmmf=None,params_model=None,indices_filter=None,wcs=None,weights=None):
 
         self.t_obs = t_obs
         self.inv_cov = inv_cov
@@ -531,6 +547,7 @@ class filter_maps:
         self.cmmf = cmmf
         self.indices_filter=indices_filter
         self.wcs = wcs
+        self.weights = weights
 
         self.theta_range = [0.,pix.nx*pix.dx,0.,pix.ny*pix.dy]
 
@@ -660,26 +677,10 @@ class filter_maps:
             cmmf_prec=self.cmmf,
             tem_norm=t_tem_norm)
 
-            # import pylab as pl
+            if self.params["snr_weighting"] == True:
 
-            # pl.figure()
-            # pl.imshow(q_map,vmax=4.)
-            # pl.colorbar()
-            # pl.savefig("/home/iz221/szifi/test_files/figures/q_map.pdf")
-            # pl.show()
-
-            # i_min = int(self.pix.nx/2 - self.pix.nx/8.)
-            # i_max = int(self.pix.nx/2 + self.pix.nx/8.)
-            # j_min = int(self.pix.ny/2 - self.pix.ny/8.)
-            # j_max = int(self.pix.ny/2 + self.pix.ny/8.)
-        
-            # print("SNR mean",np.mean(q_map[i_min:i_max,j_min:j_max]))
-            # print("SNR std",np.std(q_map[i_min:i_max,j_min:j_max]))
-
-            # pl.figure()
-            # pl.hist(q_map,bins=50)
-            # pl.savefig("/home/iz221/szifi/test_files/figures/q_hist.pdf")
-            # pl.show()
+                q_map = q_map*self.weights
+                #std = std/weights
 
             del tem, t_tem_norm
 
@@ -884,7 +885,8 @@ class filter_maps:
             profile_type=self.params_model["profile_type"],
             indices_filter=self.indices_filter,
             tile_type=self.params["tile_type"],
-            wcs=self.wcs
+            wcs=self.wcs,
+            weights=self.weights
             )
 
             q_opt[i,:] = q_extracted
@@ -933,7 +935,7 @@ class filter_maps:
 def extract_at_input_value(t_true,inv_cov,pix,beam,M_500,z,cosmology,norm_type,
 theta_0,theta_1,lrange,apod_type=None,mmf_type=None,cmmf_prec=None,cmmf_type=None,
 freqs=None,exp=None,comp_to_calculate=None,profile_type=None,indices_filter=None,
-tile_type="healpix",wcs=None):
+tile_type="healpix",wcs=None,weights=None):
 
     nfw = model.gnfw(M_500,z,cosmology,type=profile_type)
 
@@ -974,6 +976,10 @@ tile_type="healpix",wcs=None):
 
         q_map_tem,y_map,std = get_mmf_q_map(t_true,tem,inv_cov,pix,mmf_type=mmf_type,
         cmmf_prec=cmmf_prec,tem_norm=t_tem_norm,comp=comp_to_calculate[k])
+
+        if weights is not None:
+                
+            q_map_tem = q_map_tem*weights
 
         if k == 0:
 

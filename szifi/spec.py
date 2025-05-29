@@ -255,7 +255,6 @@ class cross_spec:
       
             return cov_tensor
 
-              
         if cov_type == "isotropic":
 
             cov_tensor = get_cov_isotropic()
@@ -266,8 +265,6 @@ class cross_spec:
             # pl.savefig("/home/iz221/szifi/test_files/figures/cov_isotropic.pdf")
             # pl.show()
             # quit()
-
-            print(cov_tensor.shape)
 
         elif cov_type == "anisotropic_gaussian" or cov_type == "anisotropic_boxcar":
 
