@@ -54,7 +54,6 @@ class input_data_survey:
 
             #Pixelation
 
-            print(tile_map.shape)
             nx = tile_map.shape[1]
             ny = tile_map.shape[2]
             dx,dy = tile_map.extent()
