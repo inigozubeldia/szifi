@@ -25,13 +25,14 @@ params_szifi = {
 "powspec_lmax1d": 10000, # maximum lmax for power spectra. Maps and masks will be degraded to this lmax before computing coupling matrix and power spectra
 "powspec_new_shape": None, # New shape for calculating powspec on lower resolution map. One of this and powspec_lmax1d must be 'None'
 "powspec_bin_fac": 4, # Factor by which to bin Cls. There will be nx/bin_fac bins of width bin_fac * (pi/(nx*dx)) for a field of nx^2 pixels
-"cov_type": "anisotropic_gaussian",#"anisotropic_boxcar",# "isotropic", "anisotropic_boxcar", or "anisotropic_gaussian"
-"cov_kernel_shape": [3,3],
+"cov_type": "mixed_gaussian",#"anisotropic_boxcar",# "isotropic", "anisotropic_boxcar", or "anisotropic_gaussian"
+"cov_kernel_shape": [10,10],
 "lrange": [1,300000], #ell range to be used in the analysis, if None all the modes are used
 "freqs": [0,1,2,3], #Frequency channels to be used in the analysis
 "beam": "gaussian", #"gaussian" or "real"
 "interp_type": "nearest",
-"n_inpaint": 100, #number of iterations for diffusive inpainting for point sources
+"n_inpaint": -1, #number of iterations for diffusive inpainting for point sources
+"inpaint_type": "orphics", #better inpainting than diffusive
 "inpaint": True, #if True, point sources are inpainted
 "lsep": 12000,
 "extraction_mode":"find", #"fixed" or "find"
@@ -44,7 +45,8 @@ params_szifi = {
 "tile_type": "car", #"healpix" or "car"
 "inpaint_type": "orphics",
 "max_radius_mask_arcmin": np.inf,
-
+"min_radius_mask_arcmin": 1.,
+"snr_weighting": False,
 "theta_find": "input",
 "detection_method": "maxima_lomem",
 "apod_type": "old",
