@@ -7,7 +7,7 @@ Some SZiFi's key features include:
 - It operates on sky cut-outs in which the flat-sky approximation is assumed to hold, natively supporting two sky tessellation schemes: one based on HEALPix pixels, suited for spherical maps in the HEALPix pixellation, and another one based on RA and Dec limits, suited for maps in the CAR projection.
 - It allows for foreground deprojection (e.g., of the Cosmic Infrared Background) through its implementation of the spectrally constrained MMF, or sciMMF, method (see [Zubeldia et al., 2023b](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.5123Z/abstract).
 - It can incorporate the relativistic corrections to the tSZ SED through its interface with [SZpack](https://github.com/CMBSPEC/SZpack).
-- It provides several noise covariance estimation mtehods: an isotropic method (for isotorpic noise) and multiple anisotropic methods (suitable for anisotropic noise); see `szifi/params.py` for details.
+- It provides several noise covariance estimation methods: an isotropic method (for isotorpic noise) and multiple anisotropic methods (suitable for anisotropic noise); see `szifi/params.py` for details.
 
 SZiFi has been used to produce a new set of [*Planck*](https://pla.esac.esa.int/#home) cluster catalogues (see [Zubeldia et al. 2024](https://ui.adsabs.harvard.edu/abs/2025MNRAS.tmp..470Z/abstract)). Its peformance has been tested extensively on synthetic *Planck* data and is currently being tested in the context of the [Simons Observatory](https://simonsobservatory.org) (SO).
 
