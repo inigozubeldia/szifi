@@ -5,7 +5,7 @@ SZiFi (pronounced "sci-fi") is a Python implementation of the iterative multi-fr
 Some SZiFi's key features include:
 
 - It operates on sky cut-outs in which the flat-sky approximation is assumed to hold, natively supporting two sky tessellation schemes: one based on HEALPix pixels, suited for spherical maps in the HEALPix pixellation, and another one based on RA and Dec limits, suited for maps in the CAR projection.
-- It allows for foreground deprojection (e.g., of the Cosmic Infrared Background) through its implementation of the spectrally constrained MMF, or sciMMF, method (see [Zubeldia et al., 2023b](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.5123Z/abstract).
+- It allows for foreground deprojection (e.g., of the Cosmic Infrared Background) through its implementation of the spectrally constrained MMF, or sciMMF, method (see [Zubeldia et al., 2023b](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.5123Z/abstract)).
 - It can incorporate the relativistic corrections to the tSZ SED through its interface with [SZpack](https://github.com/CMBSPEC/SZpack).
 - It provides several noise covariance estimation methods: an isotropic method (for isotorpic noise) and multiple anisotropic methods (suitable for anisotropic noise); see `szifi/params.py` for details.
 
