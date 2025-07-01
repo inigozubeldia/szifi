@@ -1,15 +1,15 @@
 ## SZiFi, the Sunyaev-Zeldovich iterative Finder
 
-SZiFi (pronounced "sci-fi") is a Python implementation of the iterative multi-frequency matched filter (iMMF) galaxy cluster finding method, described in detail in [Zubeldia et al. (2023a)](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.4766Z/abstract) and [Zubeldia et al. (2023b)](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.5123Z/abstract). It can be used to detect galaxy clusters in milimetre-wavelength intensity maps through their thermal Sunyaev-Zeldovich (tSZ) signal, as well as to detect point sources. If you use SZiFi in your work, please cite both papers.
+SZiFi (pronounced "sci-fi") is a Python implementation of the iterative multi-frequency matched filter (iMMF) galaxy cluster finding method, described in detail in [Zubeldia et al. (2023a)](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.4766Z/abstract) and [Zubeldia et al. (2023b](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.5123Z/abstract). It can be used to detect galaxy clusters in millimetre-wavelength intensity maps through their thermal Sunyaev-Zeldovich (tSZ) signal, as well as to detect point sources. If you use SZiFi in your work, please cite both papers.
 
 Some SZiFi's key features include:
 
 - It operates on sky cut-outs in which the flat-sky approximation is assumed to hold, natively supporting two sky tessellation schemes: one based on HEALPix pixels, suited for spherical maps in the HEALPix pixellation, and another one based on RA and Dec limits, suited for maps in the CAR projection.
 - It allows for foreground deprojection (e.g., of the Cosmic Infrared Background) through its implementation of the spectrally constrained MMF, or sciMMF, method (see [Zubeldia et al., 2023b](https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.5123Z/abstract)).
 - It can incorporate the relativistic corrections to the tSZ SED through its interface with [SZpack](https://github.com/CMBSPEC/SZpack).
-- It provides several noise covariance estimation methods: an isotropic method (for isotorpic noise) and multiple anisotropic methods (suitable for anisotropic noise); see `szifi/params.py` for details.
+- It provides several noise covariance estimation methods: an isotropic method (for isotropic noise) and multiple anisotropic methods (suitable for anisotropic noise); see `szifi/params.py` for details.
 
-SZiFi has been used to produce a new set of [*Planck*](https://pla.esac.esa.int/#home) cluster catalogues (see [Zubeldia et al. 2024](https://ui.adsabs.harvard.edu/abs/2025MNRAS.tmp..470Z/abstract)). Its peformance has been tested extensively on synthetic *Planck* data and is currently being tested in the context of the [Simons Observatory](https://simonsobservatory.org) (SO).
+SZiFi has been used to produce a new set of [*Planck*](https://pla.esac.esa.int/#home) cluster catalogues (see [Zubeldia et al. 2024](https://ui.adsabs.harvard.edu/abs/2025MNRAS.tmp..470Z/abstract)). Its performance has been tested extensively on synthetic *Planck* data and is currently being tested in the context of the [Simons Observatory](https://simonsobservatory.org) (SO).
 
 If you have any questions about how to use the code, please write to me at inigo.zubeldia (at) ast cam ac uk.
 
