@@ -11,7 +11,7 @@ Some SZiFi's key features include:
 
 SZiFi has been used to produce a new set of [*Planck*](https://pla.esac.esa.int/#home) cluster catalogues (see [Zubeldia et al. 2024](https://ui.adsabs.harvard.edu/abs/2025MNRAS.tmp..470Z/abstract)). Its performance has been tested extensively on synthetic *Planck* data and is currently being tested in the context of the [Simons Observatory](https://simonsobservatory.org) (SO).
 
-If you have any questions about how to use the code, please write to me at inigo.zubeldia (at) ast cam ac uk.
+If you have any questions about how to use the code, please write to me at iz221 (at) cam ac uk.
 
 ### Installation
 
